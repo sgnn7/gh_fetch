@@ -7,10 +7,15 @@ import os
 from urllib2 import urlopen
 import json
 
-DEBUG = False
+DEBUG = True
+NO_FORKS = True
 
+ACCESS_TOKEN = ''
+ACCESS_TOKEN_PARAM = 'access_token=' + ACCESS_TOKEN
 GITHUB_API_HOST = 'https://api.github.com'
-USER_REPOS_REQUEST = '%s/users/%s/repos?per_page=50&page=1'
+
+USER_REPOS_PATH = '/users/%s/repos?per_page=50&page=1'
+REPO_DETAILS_PATH = '/repos/%s'
 
 def check_parameters(args):
     if len(args) < 2:
@@ -18,18 +23,31 @@ def check_parameters(args):
         print "Usage: %s <username>" % args[0]
         exit(1)
 
+def get_json(uri):
+    full_uri = GITHUB_API_HOST + uri
+
+    if '?' in full_uri:
+        full_uri += '&' + ACCESS_TOKEN_PARAM
+    else:
+        full_uri += '?' + ACCESS_TOKEN_PARAM
+
+    return json.loads(urlopen(full_uri).read())
+
 def get_repo_names(username):
-    raw_json = urlopen(USER_REPOS_REQUEST % (GITHUB_API_HOST,username)).read()
-    repos = json.loads(raw_json)
+    repos = get_json(USER_REPOS_PATH % username)
+
+    if NO_FORKS:
+        repos = [repo for repo in repos if not repo['fork']]
+
     if DEBUG:
-        print "Available repos:"
+        print "Available repos:", len(repos)
         for repo in repos:
             print "", repo['name']
+
     return [repo['full_name'] for repo in repos]
 
 def update_repo(full_name):
-    raw_json = urlopen('%s/repos/%s' % (GITHUB_API_HOST,full_name)).read()
-    repo_data = json.loads(raw_json)
+    repo_data = get_json(REPO_DETAILS_PATH % full_name)
 
     #TODO Do something useful here
     print "Updating", repo_data['name'], "(" + repo_data['master_branch'] + ")"
