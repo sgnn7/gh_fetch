@@ -1,0 +1,45 @@
+#!/usr/bin/python
+# encoding: utf-8
+
+import sys
+import os
+
+from urllib2 import urlopen
+import json
+
+DEBUG = False
+
+GITHUB_API_HOST = 'https://api.github.com'
+USER_REPOS_REQUEST = '%s/users/%s/repos?per_page=300&page=1'
+
+def check_parameters(args):
+    if len(args) < 2:
+        print "No argument provided. Exiting."
+        print "Usage: %s <username>" % args[0]
+        exit(1)
+
+def get_repo_names(username):
+    raw_json = urlopen(USER_REPOS_REQUEST % (GITHUB_API_HOST,username)).read()
+    repos = json.loads(raw_json)
+    if DEBUG:
+        print "Available repos:"
+        for repo in repos:
+            print "", repo['name']
+    return [repo['full_name'] for repo in repos]
+
+def update_repo(full_name):
+    raw_json = urlopen('%s/repos/%s' % (GITHUB_API_HOST,full_name)).read()
+    repo_data = json.loads(raw_json)
+
+    #TODO Do something useful here
+    print "Updating", repo_data['name'], "(" + repo_data['master_branch'] + ")"
+
+if __name__ == '__main__':
+    check_parameters(sys.argv)
+
+    username = sys.argv[1]
+
+    print "Updating repos from", username
+    repo_names = get_repo_names(username)
+    for repo_name in repo_names:
+        update_repo(repo_name)
