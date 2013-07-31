@@ -10,7 +10,7 @@ import json
 DEBUG = False
 
 GITHUB_API_HOST = 'https://api.github.com'
-USER_REPOS_REQUEST = '%s/users/%s/repos?per_page=300&page=1'
+USER_REPOS_REQUEST = '%s/users/%s/repos?per_page=50&page=1'
 
 def check_parameters(args):
     if len(args) < 2:
