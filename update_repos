@@ -3,40 +3,48 @@
 
 import sys
 import os
+from subprocess import Popen, PIPE
 
 from urllib2 import urlopen
 import json
 
-DEBUG = True
-NO_FORKS = True
+DEBUG = False
+NO_FORKS = False
 
 WHITELIST=[]
 BLACKLIST=[]
 
-ACCESS_TOKEN_PARAM = 'access_token=' + ACCESS_TOKEN
+ACCESS_TOKEN_PARAM = 'access_token=%s'
 GITHUB_API_HOST = 'https://api.github.com'
+
+GIT_CLONE_CMD = 'git clone https://%s@github.com/%s'
+GIT_LOG_CMD = 'git log origin/{0} -1 --format=%H'
+GIT_FETCH_CMD = 'git fetch'
 
 USER_REPOS_PATH = '/users/%s/repos?per_page=50&page=1'
 REPO_DETAILS_PATH = '/repos/%s'
 
 def check_parameters(args):
-    if len(args) < 2:
+    if len(args) < 3:
         print "No argument provided. Exiting."
-        print "Usage: %s <username>" % args[0]
+        print "Usage: %s <username> <github token>" % args[0]
         exit(1)
 
-def get_json(uri):
+def get_json(uri, token):
     full_uri = GITHUB_API_HOST + uri
 
     if '?' in full_uri:
-        full_uri += '&' + ACCESS_TOKEN_PARAM
+        full_uri += '&' + ACCESS_TOKEN_PARAM % token
     else:
-        full_uri += '?' + ACCESS_TOKEN_PARAM
+        full_uri += '?' + ACCESS_TOKEN_PARAM % token
+
+    if DEBUG:
+        print "Trying:", full_uri
 
     return json.loads(urlopen(full_uri).read())
 
-def get_repo_names(username):
-    repos = get_json(USER_REPOS_PATH % username)
+def get_repos(username, token):
+    repos = get_json(USER_REPOS_PATH % username, token)
 
     if NO_FORKS:
         repos = [repo for repo in repos if not repo['fork']]
@@ -46,42 +54,83 @@ def get_repo_names(username):
         for repo in repos:
             print "", repo['name']
 
-    return [repo['full_name'] for repo in repos]
+    return [repo for repo in repos]
 
 def filter_repo_names(repos):
-    repos = [repo for repo in repos if not BLACKLIST.contains(repo['name'])]
-    repos = [repo for repo in repos if WHITELIST.contains(repo['name'])]
+    if DEBUG:
+        print "Filtering..."
+        #print repos
+
+    repos = [repo for repo in repos if not repo['name'] in BLACKLIST]
+
+    if len(WHITELIST) > 0:
+        repos = [repo for repo in repos if repo['name'] in WHITELIST]
 
     return repos
 
-def system_exec(command):
+def try_clone(working_directory, repo_data, token):
+    target_directory = os.path.join(working_directory, repo_data['name'])
+    print "Using directory", target_directory
+
+    if os.path.isdir(target_directory):
+        print "Already cloned. Skipping cloning"
+        return False
+
+    print "Need to clone", repo_data['name']
+    system_exec(GITHUB_CLONE_CMD % (token, repo_data['full_name']))
+
+    print "Finished cloning"
+    return True
+
+def update_repo(full_name, token):
+    repo_data = get_json(REPO_DETAILS_PATH % full_name, token)
+
+    working_directory = system_exec('pwd', None, False)
+    if try_clone(working_directory, repo_data, token):
+        return
+
+    target_directory = os.path.join(working_directory, repo_data['name'])
+
+    old_sha=system_exec(GIT_LOG_CMD.format(repo_data['default_branch']), target_directory, False)
+    print "Old default branch SHA", old_sha
+
+    print "Updating", target_directory, "(" + repo_data['default_branch'] + ")"
+    system_exec(GIT_FETCH_CMD, target_directory, False)
+
+    new_sha=system_exec(GIT_LOG_CMD.format(repo_data['default_branch']), target_directory, False)
+    print "New default branch SHA", new_sha
+
+def system_exec(command, directory=None, show_output=True):
     try:
-        p = Popen(command, stdout=PIPE, stderr=PIPE)
+        if directory:
+            p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
+        else:
+            p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+
         (output, error) = p.communicate()
+
+        if show_output:
+            print output.strip()
+            sys.stdout.flush()
+
         if p.returncode != 0:
             raise Exception(error)
         return output.strip()
     except Exception as e:
-        print "Could not execute", command
-
-
-def git_command(subcommand, directory):
-    system_exec('git ' + subcommand + 'wat')
-
-def update_repo(full_name):
-    repo_data = get_json(REPO_DETAILS_PATH % full_name)
-
-    git_command('fetch', repo_data['name'])
-    print "Updating", repo_data['name'], "(" + repo_data['master_branch'] + ")"
-    print repo_data
+        print "Could not execute", command, e
+        if DEBUG:
+            print "Terminating early"
+            exit(1)
 
 if __name__ == '__main__':
     check_parameters(sys.argv)
 
     username = sys.argv[1]
+    token = sys.argv[2]
 
     print "Updating repos from", username
-    repo_names = get_repo_names(username)
-    repo_names = filter_repo_names(repo_names)
-    for repo_name in repo_names:
-        update_repo(repo_name)
+    repos = get_repos(username, token)
+    repos = filter_repo_names(repos)
+    for repo in repos:
+        print "-" * 60
+        update_repo(repo['full_name'], token)
