@@ -10,7 +10,9 @@ import json
 DEBUG = True
 NO_FORKS = True
 
-ACCESS_TOKEN = ''
+WHITELIST=[]
+BLACKLIST=[]
+
 ACCESS_TOKEN_PARAM = 'access_token=' + ACCESS_TOKEN
 GITHUB_API_HOST = 'https://api.github.com'
 
@@ -46,11 +48,32 @@ def get_repo_names(username):
 
     return [repo['full_name'] for repo in repos]
 
+def filter_repo_names(repos):
+    repos = [repo for repo in repos if not BLACKLIST.contains(repo['name'])]
+    repos = [repo for repo in repos if WHITELIST.contains(repo['name'])]
+
+    return repos
+
+def system_exec(command):
+    try:
+        p = Popen(command, stdout=PIPE, stderr=PIPE)
+        (output, error) = p.communicate()
+        if p.returncode != 0:
+            raise Exception(error)
+        return output.strip()
+    except Exception as e:
+        print "Could not execute", command
+
+
+def git_command(subcommand, directory):
+    system_exec('git ' + subcommand + 'wat')
+
 def update_repo(full_name):
     repo_data = get_json(REPO_DETAILS_PATH % full_name)
 
-    #TODO Do something useful here
+    git_command('fetch', repo_data['name'])
     print "Updating", repo_data['name'], "(" + repo_data['master_branch'] + ")"
+    print repo_data
 
 if __name__ == '__main__':
     check_parameters(sys.argv)
@@ -59,5 +82,6 @@ if __name__ == '__main__':
 
     print "Updating repos from", username
     repo_names = get_repo_names(username)
+    repo_names = filter_repo_names(repo_names)
     for repo_name in repo_names:
         update_repo(repo_name)
