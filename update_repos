@@ -10,6 +10,7 @@ import json
 
 DEBUG = False
 NO_FORKS = False
+NO_ORG_FORKS = True
 
 WHITELIST=[]
 BLACKLIST=[]
@@ -54,13 +55,18 @@ def get_repos(repos_url, orgs_url, token):
     orgs = get_json(orgs_url, token)
 
     repos = get_json(repos_url, token)
-    for org in orgs:
-        org_repos = get_json(org.repos_url, token)
-        org_repos = [repo for repo in org_repos if repo.private]
-        repos += org_repos
-
     if NO_FORKS:
         repos = [repo for repo in repos if not repo.fork]
+
+    for org in orgs:
+        org_repos = get_json(org.repos_url, token)
+
+        priv_org_repos = [repo for repo in org_repos if repo.private]
+
+        if NO_ORG_FORKS:
+            priv_org_repos = [repo for repo in priv_org_repos if not repo.fork]
+
+        repos += priv_org_repos
 
     if True:
         print "Available repos:", len(repos)
@@ -105,13 +111,13 @@ def update_repo(repo_url, token):
     target_directory = os.path.join(working_directory, repo_data.name)
 
     old_sha=system_exec(GIT_LOG_CMD.format(repo_data.default_branch), target_directory, False)
-    print "Old default branch SHA", old_sha
+    print "Old default branch SHA", old_sha[:7]
 
     print "Updating", target_directory, "(" + repo_data.default_branch + ")"
     system_exec(GIT_FETCH_CMD, target_directory, False)
 
     new_sha=system_exec(GIT_LOG_CMD.format(repo_data.default_branch), target_directory, False)
-    print "New default branch SHA", new_sha
+    print "New default branch SHA", new_sha[:7]
 
 def system_exec(command, directory=None, show_output=True):
     try:
