@@ -21,8 +21,11 @@ GIT_CLONE_CMD = 'git clone https://%s@github.com/%s'
 GIT_LOG_CMD = 'git log origin/{0} -1 --format=%H'
 GIT_FETCH_CMD = 'git fetch'
 
-USER_REPOS_PATH = '/users/%s/repos?per_page=50&page=1'
-REPO_DETAILS_PATH = '/repos/%s'
+USER_DETAILS_PATH = '/users/%s'
+
+class AttributeDict(dict):
+    def __getattr__(self, attr):
+        return self[attr]
 
 def check_parameters(args):
     if len(args) < 3:
@@ -31,73 +34,77 @@ def check_parameters(args):
         exit(1)
 
 def get_json(uri, token):
-    full_uri = GITHUB_API_HOST + uri
-
-    if '?' in full_uri:
-        full_uri += '&' + ACCESS_TOKEN_PARAM % token
+    if '?' in uri:
+        uri += '&' + ACCESS_TOKEN_PARAM % token
     else:
-        full_uri += '?' + ACCESS_TOKEN_PARAM % token
+        uri += '?' + ACCESS_TOKEN_PARAM % token
 
     if DEBUG:
-        print "Trying:", full_uri
+        print "Trying:", uri
 
-    return json.loads(urlopen(full_uri).read())
+    return json.loads(urlopen(uri).read(), object_hook=AttributeDict)
 
-def get_repos(username, token):
-    repos = get_json(USER_REPOS_PATH % username, token)
+def get_user_data(username, token):
+    return get_json(GITHUB_API_HOST + USER_DETAILS_PATH % username, token)
+
+def get_repos(repos_url, token):
+    if DEBUG:
+        print "Getting repo data from", repos_url
+
+    repos = get_json(repos_url, token)
 
     if NO_FORKS:
-        repos = [repo for repo in repos if not repo['fork']]
+        repos = [repo for repo in repos if not repo.fork]
 
-    if DEBUG:
+    if True:
         print "Available repos:", len(repos)
         for repo in repos:
-            print "", repo['name']
+            print " -", repo.name
 
-    return [repo for repo in repos]
+    return repos
 
 def filter_repo_names(repos):
     if DEBUG:
         print "Filtering..."
         #print repos
 
-    repos = [repo for repo in repos if not repo['name'] in BLACKLIST]
+    repos = [repo for repo in repos if not repo.name in BLACKLIST]
 
     if len(WHITELIST) > 0:
-        repos = [repo for repo in repos if repo['name'] in WHITELIST]
+        repos = [repo for repo in repos if repo.name in WHITELIST]
 
     return repos
 
 def try_clone(working_directory, repo_data, token):
-    target_directory = os.path.join(working_directory, repo_data['name'])
+    target_directory = os.path.join(working_directory, repo_data.name)
     print "Using directory", target_directory
 
     if os.path.isdir(target_directory):
         print "Already cloned. Skipping cloning"
         return False
 
-    print "Need to clone", repo_data['name']
-    system_exec(GITHUB_CLONE_CMD % (token, repo_data['full_name']))
+    print "Need to clone", repo_data.name
+    system_exec(GIT_CLONE_CMD % (token, repo_data.full_name))
 
     print "Finished cloning"
     return True
 
-def update_repo(full_name, token):
-    repo_data = get_json(REPO_DETAILS_PATH % full_name, token)
+def update_repo(repo_url, token):
+    repo_data = get_json(repo_url, token)
 
     working_directory = system_exec('pwd', None, False)
     if try_clone(working_directory, repo_data, token):
         return
 
-    target_directory = os.path.join(working_directory, repo_data['name'])
+    target_directory = os.path.join(working_directory, repo_data.name)
 
-    old_sha=system_exec(GIT_LOG_CMD.format(repo_data['default_branch']), target_directory, False)
+    old_sha=system_exec(GIT_LOG_CMD.format(repo_data.default_branch), target_directory, False)
     print "Old default branch SHA", old_sha
 
-    print "Updating", target_directory, "(" + repo_data['default_branch'] + ")"
+    print "Updating", target_directory, "(" + repo_data.default_branch + ")"
     system_exec(GIT_FETCH_CMD, target_directory, False)
 
-    new_sha=system_exec(GIT_LOG_CMD.format(repo_data['default_branch']), target_directory, False)
+    new_sha=system_exec(GIT_LOG_CMD.format(repo_data.default_branch), target_directory, False)
     print "New default branch SHA", new_sha
 
 def system_exec(command, directory=None, show_output=True):
@@ -129,8 +136,10 @@ if __name__ == '__main__':
     token = sys.argv[2]
 
     print "Updating repos from", username
-    repos = get_repos(username, token)
+    user_data = get_user_data(username, token)
+
+    repos = get_repos(user_data.repos_url, token)
     repos = filter_repo_names(repos)
     for repo in repos:
         print "-" * 60
-        update_repo(repo['full_name'], token)
+        update_repo(repo.url, token)
