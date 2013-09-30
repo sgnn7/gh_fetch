@@ -47,11 +47,17 @@ def get_json(uri, token):
 def get_user_data(username, token):
     return get_json(GITHUB_API_HOST + USER_DETAILS_PATH % username, token)
 
-def get_repos(repos_url, token):
+def get_repos(repos_url, orgs_url, token):
     if DEBUG:
         print "Getting repo data from", repos_url
 
+    orgs = get_json(orgs_url, token)
+
     repos = get_json(repos_url, token)
+    for org in orgs:
+        org_repos = get_json(org.repos_url, token)
+        org_repos = [repo for repo in org_repos if repo.private]
+        repos += org_repos
 
     if NO_FORKS:
         repos = [repo for repo in repos if not repo.fork]
@@ -138,7 +144,7 @@ if __name__ == '__main__':
     print "Updating repos from", username
     user_data = get_user_data(username, token)
 
-    repos = get_repos(user_data.repos_url, token)
+    repos = get_repos(user_data.repos_url, user_data.organizations_url, token)
     repos = filter_repo_names(repos)
     for repo in repos:
         print "-" * 60
