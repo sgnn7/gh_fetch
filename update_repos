@@ -37,6 +37,7 @@ class RepoUpdater(object):
     def __init__(self, username, token):
         self.username = username
         self.auth_token = token
+        self.cwd = os.getcwd()
 
     def update(self):
         print "Updating repos from", COLOR_BOLD_GREEN + username, COLOR_END
@@ -109,8 +110,8 @@ class RepoUpdater(object):
 
         return repos
 
-    def try_clone(self, working_directory, repo_data):
-        target_directory = os.path.join(working_directory, repo_data.name)
+    def try_clone(self, repo_data):
+        target_directory = os.path.join(self.cwd, repo_data.name)
 
         print "Using", target_directory
         if os.path.isdir(target_directory):
@@ -132,11 +133,10 @@ class RepoUpdater(object):
     def update_repo(self, repo_url):
         repo_data = self.get_json(repo_url)
 
-        working_directory = self.system_exec('pwd', None, False)
-        if self.try_clone(working_directory, repo_data):
+        if self.try_clone(repo_data):
             return
 
-        target_directory = os.path.join(working_directory, repo_data.name)
+        target_directory = os.path.join(self.cwd, repo_data.name)
 
         self.print_start_sha(repo_data.default_branch, target_directory)
         self.system_exec(GIT_FETCH_CMD, target_directory, False)
