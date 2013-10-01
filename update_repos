@@ -40,10 +40,18 @@ class RepoUpdater(object):
         self.cwd = args.directory if args.directory else os.getcwd()
 
         self.debug = args.debug
+        self.exclude_orgs = args.exclude_orgs
         self.include_org_forks = args.include_org_forks
         self.include_public_org_repos = args.include_public_org_repos
         self.exclude_forks = args.exclude_forks
-        self.exclude_own_repos = args.exclude_own
+        self.exclude_own = args.exclude_own
+
+        if self.debug:
+            # We don't want this printed
+            del args['token']
+            print "Current configuration: "
+            for arg in args:
+                print arg, ":", self.get_color_str(args[arg], Color.GREEN)
 
     def update(self):
         print "User:", self.get_color_str(self.username, Color.GREEN)
@@ -66,16 +74,15 @@ class RepoUpdater(object):
     def get_user_data(self):
         return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH % self.username)
 
-    def get_repos(self, repos_url, orgs_url):
-        repos = []
-        if self.debug:
-            print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
+    def get_own_repos(self, repos_url):
+        repos = self.get_json(repos_url)
+        if self.exclude_forks:
+            repos = [repo for repo in repos if not repo.fork]
 
-        if not self.exclude_own_repos:
-            repos += self.get_json(repos_url)
-            if self.exclude_forks:
-                repos = [repo for repo in repos if not repo.fork]
+        return repos
 
+    def get_org_repos(self, orgs_url):
+        all_orgs_repos = []
         orgs = self.get_json(orgs_url)
         for org in orgs:
             org_repos = self.get_json(org.repos_url)
@@ -85,7 +92,21 @@ class RepoUpdater(object):
             if not self.include_org_forks:
                 org_repos = [repo for repo in org_repos if not repo.fork]
 
-            repos += org_repos
+            all_orgs_repos += org_repos
+
+        return all_orgs_repos
+
+
+    def get_repos(self, repos_url, orgs_url):
+        repos = []
+        if self.debug:
+            print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
+
+        if not self.exclude_own:
+            repos += self.get_own_repos(repos_url)
+
+        if not self.exclude_orgs:
+            repos += self.get_org_repos(orgs_url)
 
         if self.debug:
             print "Available repos:", self.get_color_str(str(len(repos)), Color.GREEN)
@@ -171,8 +192,9 @@ class RepoUpdater(object):
             print "Terminating early"
             exit(1)
 
-    def get_color_str(self, text, color):
-        return color + text + Color.END
+    @staticmethod
+    def get_color_str(text, color):
+        return color + str(text) + Color.END
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Retrieve and/or update local copies of GitHub-hosted repos')
@@ -191,6 +213,9 @@ if __name__ == '__main__':
             action='store_true')
     parser.add_argument('--exclude-forks', \
             help='Exclude forked repositories from the updates', \
+            action='store_true')
+    parser.add_argument('--exclude-orgs', \
+            help='Exclude repos that are in user\'s orgs (this does not filter the ones you have)', \
             action='store_true')
     parser.add_argument('--include-org-forks', \
             help='Include forked repos that are in user\'s orgs', \
