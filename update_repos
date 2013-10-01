@@ -43,7 +43,7 @@ class RepoUpdater(object):
         self.include_org_forks = args.include_org_forks
         self.include_public_org_repos = args.include_public_org_repos
         self.exclude_forks = args.exclude_forks
-        self.include_own_repos = args.include_own
+        self.exclude_own_repos = args.exclude_own
 
     def update(self):
         print "User:", self.get_color_str(self.username, Color.GREEN)
@@ -71,7 +71,7 @@ class RepoUpdater(object):
         if self.debug:
             print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
 
-        if self.include_own_repos:
+        if not self.exclude_own_repos:
             repos += self.get_json(repos_url)
             if self.exclude_forks:
                 repos = [repo for repo in repos if not repo.fork]
@@ -186,9 +186,9 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--directory', \
             help='Target directory for cloning and fetching')
 
-    parser.add_argument('-i', '--include-own', \
-            help='Include own repositories in the updates', \
-            action='store_false')
+    parser.add_argument('-x', '--exclude-own', \
+            help='Exclude own repositories in the updates', \
+            action='store_true')
     parser.add_argument('--exclude-forks', \
             help='Exclude forked repositories from the updates', \
             action='store_true')
