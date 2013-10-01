@@ -10,9 +10,9 @@ Downloader and updater for your github repos.
 
 ```
 $ ../update_repos -h
-usage: update_repos [-h] [-d DIRECTORY] [-x] [--exclude-forks]
-                    [--include-org-forks] [--include-public-org-repos]
-                    [--debug]
+usage: update_repos [-h] [--version] [-d DIRECTORY] [-x] [--exclude-forks]
+                    [--exclude-orgs] [--include-org-forks]
+                    [--include-public-org-repos] [--debug]
                     username token
 
 Retrieve and/or update local copies of GitHub-hosted repos
@@ -25,22 +25,24 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  --version             show program's version number and exit
   -d DIRECTORY, --directory DIRECTORY
                         Target directory for cloning and fetching
   -x, --exclude-own     Exclude own repositories in the updates
   --exclude-forks       Exclude forked repositories from the updates
+  --exclude-orgs        Exclude repos that are in user's orgs (this does not
+                        filter the ones you have)
   --include-org-forks   Include forked repos that are in user's orgs
   --include-public-org-repos
                         Include public repos that are in user's orgs
   --debug               Enable debugging output
-
 ```
 
 ## Examples
 
 - Getting all your repos:
 ```
-./update_repos -d /opt/checkout sgnn7 1234567890abfdefghijkl
+./update_repos -d /opt/checkout --exclude-orgs sgnn7 1234567890abfdefghijkl
 ```
 
 - Backing up all organizational repos:
