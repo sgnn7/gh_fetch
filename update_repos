@@ -24,11 +24,12 @@ GIT_FETCH_CMD = 'git fetch'
 
 USER_DETAILS_PATH = '/users/%s'
 
-COLOR_BOLD_GREEN = "\033[1;32m"
-COLOR_BOLD_BLUE = "\033[1;34m"
-COLOR_BOLD_YELLOW = "\033[1;33m"
-COLOR_BOLD_RED = "\033[1;31m"
-COLOR_END = "\033[0m"
+class Color:
+    GREEN = "\033[1;32m"
+    BLUE = "\033[1;34m"
+    YELLOW = "\033[1;33m"
+    RED = "\033[1;31m"
+    END = "\033[0m"
 
 class AttributeDict(dict):
     def __getattr__(self, attr):
@@ -41,13 +42,13 @@ class RepoUpdater(object):
         self.cwd = os.getcwd()
 
     def update(self):
-        print "Updating repos from", COLOR_BOLD_GREEN + username, COLOR_END
+        print "User:", self.get_color_str(username, Color.GREEN)
         user_data = self.get_user_data()
 
         repos = self.get_repos(user_data.repos_url, user_data.organizations_url)
         repos = self.filter_repo_names(repos)
         for repo in repos:
-            print COLOR_BOLD_YELLOW + '{:-^60}'.format(repo.name) + COLOR_END
+            print self.get_color_str('{:-^60}'.format(repo.name), Color.YELLOW)
             self.update_repo(repo.url)
 
     def get_json(self, uri):
@@ -63,7 +64,7 @@ class RepoUpdater(object):
 
     def get_repos(self, repos_url, orgs_url):
         if DEBUG:
-            print "Getting repo data from", COLOR_BOLD_GREEN, repos_url, COLOR_END
+            print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
 
         repos = self.get_json(repos_url)
         if NO_FORKS:
@@ -80,10 +81,10 @@ class RepoUpdater(object):
             repos += priv_org_repos
 
         if DEBUG:
-            print "Available repos:", COLOR_BOLD_GREEN + str(len(repos)), COLOR_END
+            print "Available repos:", self.get_color_str(str(len(repos)), Color.GREEN)
             for repo in repos:
                 owner = repo.owner.login
-                print " -", COLOR_BOLD_YELLOW + repo.name, COLOR_END
+                print " -", this.get_color_str(repo.name, Color.YELLOW)
                 print " " * 5, repo.description
 
 
@@ -100,13 +101,13 @@ class RepoUpdater(object):
 
         filtered_repos = original_repos - len(repos)
 
-        filtered_repos_str = "(" + str(filtered_repos), "filtered)"
+        filtered_repos_str = " (" + str(filtered_repos) + " filtered)"
         repo_count_str = str(original_repos - filtered_repos) + " / " + str(original_repos)
-        print "Fetching repos:", COLOR_BOLD_GREEN + repo_count_str, filtered_repos_str, COLOR_END
+        print "Fetching repos:", self.get_color_str(repo_count_str + filtered_repos_str, Color.GREEN)
 
         for repo in repos:
             owner = repo.owner.login
-            print " -", COLOR_BOLD_YELLOW + repo.name, COLOR_END
+            print " -", Color.YELLOW + repo.name, Color.END
             print " " * 5, repo.description
 
         return repos
@@ -124,10 +125,11 @@ class RepoUpdater(object):
 
     def get_sha_str(self, branch, directory):
         sha=self.system_exec(GIT_LOG_CMD.format(branch), directory, False)
-        return COLOR_BOLD_GREEN + sha[:7] + COLOR_END
+        return self.get_color_str(sha[:7], Color.GREEN)
 
     def print_start_sha(self, branch, directory):
-        print("- "+ COLOR_BOLD_GREEN + branch + COLOR_END+ " @ "+ self.get_sha_str(branch, directory)+ ' ..'),
+        print("- " + self.get_color_str(branch, Color.GREEN) + " @ " \
+                + self.get_sha_str(branch, directory) + ' ..'),
 
     def update_repo(self, repo_url):
         repo_data = self.get_json(repo_url)
@@ -158,9 +160,12 @@ class RepoUpdater(object):
             return output.strip()
 
         except Exception as err:
-            print COLOR_BOLD_RED + "Could not execute", command, err, COLOR_END
+            print Color.RED + "Could not execute", command, err, Color.END
             print "Terminating early"
             exit(1)
+
+    def get_color_str(self, text, color):
+        return color + text + Color.END
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
