@@ -1,5 +1,5 @@
 *.py[cod]
 *.swp
 *~
-dist
-build
+dist/
+build/
