@@ -54,6 +54,8 @@ class RepoUpdater(object):
                 print arg, ":", self.get_color_str(args[arg], Color.GREEN)
 
     def update(self):
+        os.makedirs(self.cwd)
+
         print "User:", self.get_color_str(self.username, Color.GREEN)
         user_data = self.get_user_data()
 
