@@ -176,15 +176,32 @@ class RepoUpdater(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Retrieve and/or update local copies of GitHub-hosted repos')
-    parser.add_argument('username',                   help='GitHub username')
-    parser.add_argument('token',                      help='GitHub token tied to the username')
 
-    parser.add_argument('-d', '--directory',          help='Destination directory')
-    parser.add_argument('-i', '--include-own',        help='Include own repositories', action='store_false')
-    parser.add_argument('--exclude-forks',            help='Exclude forked repositories', action='store_true')
-    parser.add_argument('--include-org-forks',        help='Exclude forked repositories in orgs', action='store_true')
-    parser.add_argument('--include-public-org-repos', help='Include public repositories in orgs', action='store_true')
-    parser.add_argument('--debug',                    help='Enable debugging', action='store_true')
+    parser.add_argument('username', \
+            help='GitHub username that will be used for cloning and fetching')
+    parser.add_argument('token', \
+            help='GitHub auth token for that username. \
+            You can create one at https://github.com/settings/applications')
+
+    parser.add_argument('-d', '--directory', \
+            help='Target directory for cloning and fetching')
+
+    parser.add_argument('-i', '--include-own', \
+            help='Include own repositories in the updates', \
+            action='store_false')
+    parser.add_argument('--exclude-forks', \
+            help='Exclude forked repositories from the updates', \
+            action='store_true')
+    parser.add_argument('--include-org-forks', \
+            help='Include forked repos that are in user\'s orgs', \
+            action='store_true')
+    parser.add_argument('--include-public-org-repos', \
+            help='Include public repos that are in user\'s orgs', \
+            action='store_true')
+
+    parser.add_argument('--debug', \
+            help='Enable debugging output', \
+            action='store_true')
 
     args = AttributeDict(vars(parser.parse_args()))
 
