@@ -8,7 +8,7 @@ Downloader and updater for your github repos.
 
 **gh_fetch** is designed to fix all of these problems by automating the process to the maximum extent possible. This tool will go through your GitHub repos both public and private including shared repositories from toher organizations and fetch the most recent changes for it, cloning the relevant repos if they are not already downloaded. Feature set will be expanding per my needs but you are free to fork and issue a pull request.
 
-```bash
+```
 usage: update_repos [-h] [-d DIRECTORY] [-i] [--exclude-forks]
                     [--include-org-forks] [--include-public-org-repos]
                     [--debug]
