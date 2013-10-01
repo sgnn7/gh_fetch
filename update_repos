@@ -15,7 +15,7 @@ NO_ORG_FORKS = True
 WHITELIST=[]
 BLACKLIST=[]
 
-ACCESS_TOKEN_PARAM = 'access_token=%s'
+ACCESS_TOKEN_PARAM = '?access_token=%s'
 GITHUB_API_HOST = 'https://api.github.com'
 
 GIT_CLONE_CMD = 'git clone https://%s@github.com/%s'
@@ -51,7 +51,7 @@ class RepoUpdater(object):
             self.update_repo(repo.url)
 
     def get_json(self, uri):
-        uri += '?' + ACCESS_TOKEN_PARAM % self.auth_token
+        uri += ACCESS_TOKEN_PARAM % self.auth_token
 
         if DEBUG:
             print "Trying:", uri
