@@ -161,10 +161,9 @@ def system_exec(command, directory=None, show_output=True):
             raise Exception(error)
         return output.strip()
     except Exception as e:
-        print "Could not execute", command, e
-        if DEBUG:
-            print "Terminating early"
-            exit(1)
+        print COLOR_BOLD_RED + "Could not execute", command, e, COLOR_END
+        print "Terminating early"
+        exit(1)
 
 if __name__ == '__main__':
     check_parameters(sys.argv)
@@ -178,5 +177,5 @@ if __name__ == '__main__':
     repos = get_repos(user_data.repos_url, user_data.organizations_url, token)
     repos = filter_repo_names(repos)
     for repo in repos:
-        print "-" * 60
+        print COLOR_BOLD_YELLOW + '{:-^60}'.format(repo.name) + COLOR_END
         update_repo(repo.url, token)
