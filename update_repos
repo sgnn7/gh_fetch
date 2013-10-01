@@ -16,7 +16,7 @@ ACCESS_TOKEN_PARAM = '?access_token=%s'
 LISTING_FIX_PARAM = '&per_page=150'
 GITHUB_API_HOST = 'https://api.github.com'
 
-GIT_CLONE_CMD = 'git clone https://%s@github.com/%s'
+GIT_CLONE_CMD = 'git clone --recurse-submodules https://%s@github.com/%s'
 GIT_LOG_CMD = 'git log origin/{0} -1 --format=%H'
 GIT_FETCH_CMD = 'git fetch'
 
