@@ -3,19 +3,17 @@
 
 import sys
 import os
+import argparse
 from subprocess import Popen, PIPE
 
 from urllib2 import urlopen
 import json
 
-DEBUG = False
-NO_FORKS = False
-NO_ORG_FORKS = True
-
 WHITELIST=[]
 BLACKLIST=[]
 
 ACCESS_TOKEN_PARAM = '?access_token=%s'
+LISTING_FIX_PARAM = '&per_page=150'
 GITHUB_API_HOST = 'https://api.github.com'
 
 GIT_CLONE_CMD = 'git clone https://%s@github.com/%s'
@@ -36,13 +34,18 @@ class AttributeDict(dict):
         return self[attr]
 
 class RepoUpdater(object):
-    def __init__(self, username, token):
-        self.username = username
-        self.auth_token = token
-        self.cwd = os.getcwd()
+    def __init__(self, args):
+        self.username = args.username
+        self.auth_token = args.token
+        self.cwd = args.directory if args.directory else os.getcwd()
+
+        self.debug = args.debug
+        self.exclude_org_forks = args.exclude_org_forks
+        self.exclude_forks = args.exclude_forks
+        self.include_own_repos = args.include_own
 
     def update(self):
-        print "User:", self.get_color_str(username, Color.GREEN)
+        print "User:", self.get_color_str(self.username, Color.GREEN)
         user_data = self.get_user_data()
 
         repos = self.get_repos(user_data.repos_url, user_data.organizations_url)
@@ -52,9 +55,9 @@ class RepoUpdater(object):
             self.update_repo(repo.url)
 
     def get_json(self, uri):
-        uri += ACCESS_TOKEN_PARAM % self.auth_token
+        uri += ACCESS_TOKEN_PARAM % self.auth_token + LISTING_FIX_PARAM
 
-        if DEBUG:
+        if self.debug:
             print "Trying:", uri
 
         return json.loads(urlopen(uri).read(), object_hook=AttributeDict)
@@ -63,24 +66,26 @@ class RepoUpdater(object):
         return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH % self.username)
 
     def get_repos(self, repos_url, orgs_url):
-        if DEBUG:
+        repos = []
+        if self.debug:
             print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
 
-        repos = self.get_json(repos_url)
-        if NO_FORKS:
-            repos = [repo for repo in repos if not repo.fork]
+        if self.include_own_repos:
+            repos += self.get_json(repos_url)
+            if self.exclude_forks:
+                repos = [repo for repo in repos if not repo.fork]
 
         orgs = self.get_json(orgs_url)
         for org in orgs:
             org_repos = self.get_json(org.repos_url)
 
             priv_org_repos = [repo for repo in org_repos if repo.private]
-            if NO_ORG_FORKS:
+            if self.exclude_org_forks:
                 priv_org_repos = [repo for repo in priv_org_repos if not repo.fork]
 
             repos += priv_org_repos
 
-        if DEBUG:
+        if self.debug:
             print "Available repos:", self.get_color_str(str(len(repos)), Color.GREEN)
             for repo in repos:
                 owner = repo.owner.login
@@ -168,12 +173,16 @@ class RepoUpdater(object):
         return color + text + Color.END
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print "No argument provided. Exiting."
-        print "Usage: %s <username> <github token>" % sys.argv[0]
-        exit(1)
+    parser = argparse.ArgumentParser(description='Retrieve and/or update local copies of GitHub-hosted repos')
+    parser.add_argument('username',            help='GitHub username')
+    parser.add_argument('token',               help='GitHub token tied to the username')
 
-    username = sys.argv[1]
-    token = sys.argv[2]
+    parser.add_argument('-d', '--directory',   help='Destination directory')
+    parser.add_argument('-i', '--include-own', help='Include own repositories', action='store_false')
+    parser.add_argument('--exclude-forks',     help='Exclude forked repositories', action='store_true')
+    parser.add_argument('--exclude-org-forks', help='Exclude forked repositories in orgs', action='store_false')
+    parser.add_argument('--debug',             help='Enable debugging', action='store_true')
 
-    RepoUpdater(username, token).update()
+    args = AttributeDict(vars(parser.parse_args()))
+
+    RepoUpdater(args).update()
