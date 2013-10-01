@@ -27,6 +27,7 @@ USER_DETAILS_PATH = '/users/%s'
 COLOR_BOLD_GREEN = "\033[1;32m"
 COLOR_BOLD_BLUE = "\033[1;34m"
 COLOR_BOLD_YELLOW = "\033[1;33m"
+COLOR_BOLD_RED = "\033[1;31m"
 COLOR_END = "\033[0m"
 
 class AttributeDict(dict):
@@ -110,9 +111,7 @@ class RepoUpdater(object):
 
         return repos
 
-    def try_clone(self, repo_data):
-        target_directory = os.path.join(self.cwd, repo_data.name)
-
+    def try_clone(self, repo_data, target_directory):
         print "Using", target_directory
         if os.path.isdir(target_directory):
             return False
@@ -132,34 +131,34 @@ class RepoUpdater(object):
 
     def update_repo(self, repo_url):
         repo_data = self.get_json(repo_url)
-
-        if self.try_clone(repo_data):
-            return
-
         target_directory = os.path.join(self.cwd, repo_data.name)
+
+        if self.try_clone(repo_data, target_directory):
+            return
 
         self.print_start_sha(repo_data.default_branch, target_directory)
         self.system_exec(GIT_FETCH_CMD, target_directory, False)
         print self.get_sha_str(repo_data.default_branch, target_directory)
 
     def system_exec(self, command, directory=None, show_output=True):
-        try:
-            if directory:
-                p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
-            else:
-                p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+        if not directory:
+            directory = self.cwd
 
-            (output, error) = p.communicate()
+        try:
+            process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
+            (output, error) = process.communicate()
 
             if show_output:
                 print output.strip()
                 sys.stdout.flush()
 
-            if p.returncode != 0:
+            if process.returncode != 0:
                 raise Exception(error)
+
             return output.strip()
-        except Exception as e:
-            print COLOR_BOLD_RED + "Could not execute", command, e, COLOR_END
+
+        except Exception as err:
+            print COLOR_BOLD_RED + "Could not execute", command, err, COLOR_END
             print "Terminating early"
             exit(1)
 
