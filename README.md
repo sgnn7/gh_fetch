@@ -1,6 +1,7 @@
 gh_fetch
 ========
-Downloader and updater for your github repos.
+###Downloader and updater for your github repos.
+
 
 - Did you ever need to update a ton of repositories from GitHub but you had to do it one by one?
 - Did you ever need to start using your dev machine quickly but had to clone repos one by one?
