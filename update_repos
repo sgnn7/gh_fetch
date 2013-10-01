@@ -40,7 +40,7 @@ class RepoUpdater(object):
         self.cwd = args.directory if args.directory else os.getcwd()
 
         self.debug = args.debug
-        self.exclude_org_forks = args.exclude_org_forks
+        self.include_org_forks = args.include_org_forks
         self.exclude_forks = args.exclude_forks
         self.include_own_repos = args.include_own
 
@@ -80,7 +80,7 @@ class RepoUpdater(object):
             org_repos = self.get_json(org.repos_url)
 
             priv_org_repos = [repo for repo in org_repos if repo.private]
-            if self.exclude_org_forks:
+            if not self.include_org_forks:
                 priv_org_repos = [repo for repo in priv_org_repos if not repo.fork]
 
             repos += priv_org_repos
@@ -180,7 +180,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--directory',   help='Destination directory')
     parser.add_argument('-i', '--include-own', help='Include own repositories', action='store_false')
     parser.add_argument('--exclude-forks',     help='Exclude forked repositories', action='store_true')
-    parser.add_argument('--exclude-org-forks', help='Exclude forked repositories in orgs', action='store_false')
+    parser.add_argument('--include-org-forks', help='Exclude forked repositories in orgs', action='store_true')
     parser.add_argument('--debug',             help='Enable debugging', action='store_true')
 
     args = AttributeDict(vars(parser.parse_args()))
