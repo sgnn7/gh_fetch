@@ -8,7 +8,6 @@ from subprocess import Popen, PIPE
 from urllib2 import urlopen
 import json
 
-USE_TERM_COLORS = True
 DEBUG = False
 NO_FORKS = False
 NO_ORG_FORKS = True
@@ -34,148 +33,143 @@ class AttributeDict(dict):
     def __getattr__(self, attr):
         return self[attr]
 
-def check_parameters(args):
-    if len(args) < 3:
-        print "No argument provided. Exiting."
-        print "Usage: %s <username> <github token>" % args[0]
-        exit(1)
+class RepoUpdater(object):
+    def __init__(self, username, token):
+        self.username = username
+        self.auth_token = token
 
-def get_json(uri, token):
-    if '?' in uri:
-        uri += '&' + ACCESS_TOKEN_PARAM % token
-    else:
-        uri += '?' + ACCESS_TOKEN_PARAM % token
+    def update(self):
+        print "Updating repos from", COLOR_BOLD_GREEN + username, COLOR_END
+        user_data = self.get_user_data()
 
-    if DEBUG:
-        print "Trying:", uri
+        repos = self.get_repos(user_data.repos_url, user_data.organizations_url)
+        repos = self.filter_repo_names(repos)
+        for repo in repos:
+            print COLOR_BOLD_YELLOW + '{:-^60}'.format(repo.name) + COLOR_END
+            self.update_repo(repo.url)
 
-    return json.loads(urlopen(uri).read(), object_hook=AttributeDict)
+    def get_json(self, uri):
+        uri += '?' + ACCESS_TOKEN_PARAM % self.auth_token
 
-def get_user_data(username, token):
-    return get_json(GITHUB_API_HOST + USER_DETAILS_PATH % username, token)
+        if DEBUG:
+            print "Trying:", uri
 
-def get_repos(repos_url, orgs_url, token):
-    if DEBUG:
-        print "Getting repo data from", COLOR_BOLD_GREEN, repos_url, COLOR_END
+        return json.loads(urlopen(uri).read(), object_hook=AttributeDict)
 
-    orgs = get_json(orgs_url, token)
+    def get_user_data(self):
+        return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH % self.username)
 
-    repos = get_json(repos_url, token)
-    if NO_FORKS:
-        repos = [repo for repo in repos if not repo.fork]
+    def get_repos(self, repos_url, orgs_url):
+        if DEBUG:
+            print "Getting repo data from", COLOR_BOLD_GREEN, repos_url, COLOR_END
 
-    for org in orgs:
-        org_repos = get_json(org.repos_url, token)
+        repos = self.get_json(repos_url)
+        if NO_FORKS:
+            repos = [repo for repo in repos if not repo.fork]
 
-        priv_org_repos = [repo for repo in org_repos if repo.private]
+        orgs = self.get_json(orgs_url)
+        for org in orgs:
+            org_repos = self.get_json(org.repos_url)
 
-        if NO_ORG_FORKS:
-            priv_org_repos = [repo for repo in priv_org_repos if not repo.fork]
+            priv_org_repos = [repo for repo in org_repos if repo.private]
+            if NO_ORG_FORKS:
+                priv_org_repos = [repo for repo in priv_org_repos if not repo.fork]
 
-        repos += priv_org_repos
+            repos += priv_org_repos
 
-    if DEBUG:
-        print "Available repos:", COLOR_BOLD_GREEN + str(len(repos)), COLOR_END
+        if DEBUG:
+            print "Available repos:", COLOR_BOLD_GREEN + str(len(repos)), COLOR_END
+            for repo in repos:
+                owner = repo.owner.login
+                print " -", COLOR_BOLD_YELLOW + repo.name, COLOR_END
+                print " " * 5, repo.description
+
+
+        return repos
+
+    def filter_repo_names(self, repos):
+        original_repos = len(repos)
+
+        if BLACKLIST:
+            repos = [repo for repo in repos if not repo.name in BLACKLIST]
+
+        if WHITELIST:
+            repos = [repo for repo in repos if repo.name in WHITELIST]
+
+        filtered_repos = original_repos - len(repos)
+
+        filtered_repos_str = "(" + str(filtered_repos), "filtered)"
+        repo_count_str = str(original_repos - filtered_repos) + " / " + str(original_repos)
+        print "Fetching repos:", COLOR_BOLD_GREEN + repo_count_str, filtered_repos_str, COLOR_END
+
         for repo in repos:
             owner = repo.owner.login
             print " -", COLOR_BOLD_YELLOW + repo.name, COLOR_END
             print " " * 5, repo.description
 
+        return repos
 
-    return repos
+    def try_clone(self, working_directory, repo_data):
+        target_directory = os.path.join(working_directory, repo_data.name)
 
-def filter_repo_names(repos):
-    if DEBUG:
-        print "Filtering..."
-        #print repos
+        print "Using", target_directory
+        if os.path.isdir(target_directory):
+            return False
 
-    original_repos = len(repos)
+        print "Need to clone", repo_data.name
+        self.system_exec(GIT_CLONE_CMD % (self.auth_token, repo_data.full_name))
 
-    repos = [repo for repo in repos if not repo.name in BLACKLIST]
+        print "Finished cloning"
+        return True
 
-    if len(WHITELIST) > 0:
-        repos = [repo for repo in repos if repo.name in WHITELIST]
+    def get_sha_str(self, branch, directory):
+        sha=self.system_exec(GIT_LOG_CMD.format(branch), directory, False)
+        return COLOR_BOLD_GREEN + sha[:7] + COLOR_END
 
-    filtered_repos = original_repos - len(repos)
+    def print_start_sha(self, branch, directory):
+        print("- "+ COLOR_BOLD_GREEN + branch + COLOR_END+ " @ "+ self.get_sha_str(branch, directory)+ ' ..'),
 
-    if filtered_repos:
-        print "Filtered", COLOR_BOLD_RED + str(filtered_repos) + COLOR_END, "repos"
+    def update_repo(self, repo_url):
+        repo_data = self.get_json(repo_url)
 
-    print "Fetching repos:", COLOR_BOLD_GREEN + str(original_repos - filtered_repos), "/", original_repos, \
-        "(" + str(filtered_repos), "filtered)", COLOR_END
-    for repo in repos:
-        owner = repo.owner.login
-        print " -", COLOR_BOLD_YELLOW + repo.name, COLOR_END
-        print " " * 5, repo.description
+        working_directory = self.system_exec('pwd', None, False)
+        if self.try_clone(working_directory, repo_data):
+            return
 
-    return repos
+        target_directory = os.path.join(working_directory, repo_data.name)
 
-def try_clone(working_directory, repo_data, token):
-    target_directory = os.path.join(working_directory, repo_data.name)
-    print "Using directory", target_directory
+        self.print_start_sha(repo_data.default_branch, target_directory)
+        self.system_exec(GIT_FETCH_CMD, target_directory, False)
+        print self.get_sha_str(repo_data.default_branch, target_directory)
 
-    if os.path.isdir(target_directory):
-        print "Already cloned. Skipping cloning"
-        return False
+    def system_exec(self, command, directory=None, show_output=True):
+        try:
+            if directory:
+                p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
+            else:
+                p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
 
-    print "Need to clone", repo_data.name
-    system_exec(GIT_CLONE_CMD % (token, repo_data.full_name))
+            (output, error) = p.communicate()
 
-    print "Finished cloning"
-    return True
+            if show_output:
+                print output.strip()
+                sys.stdout.flush()
 
-def update_repo(repo_url, token):
-    repo_data = get_json(repo_url, token)
-
-    working_directory = system_exec('pwd', None, False)
-    if try_clone(working_directory, repo_data, token):
-        return
-
-    target_directory = os.path.join(working_directory, repo_data.name)
-
-    old_sha=system_exec(GIT_LOG_CMD.format(repo_data.default_branch), target_directory, False)
-    print "Old", COLOR_BOLD_GREEN + repo_data.default_branch + COLOR_END, "SHA", \
-        COLOR_BOLD_GREEN + old_sha[:7], COLOR_END
-
-    print "Updating", target_directory, "(" + repo_data.default_branch + ")"
-    system_exec(GIT_FETCH_CMD, target_directory, False)
-
-    new_sha=system_exec(GIT_LOG_CMD.format(repo_data.default_branch), target_directory, False)
-    print "New", COLOR_BOLD_GREEN + repo_data.default_branch + COLOR_END, "SHA", \
-        COLOR_BOLD_GREEN + new_sha[:7], COLOR_END
-
-def system_exec(command, directory=None, show_output=True):
-    try:
-        if directory:
-            p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
-        else:
-            p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
-
-        (output, error) = p.communicate()
-
-        if show_output:
-            print output.strip()
-            sys.stdout.flush()
-
-        if p.returncode != 0:
-            raise Exception(error)
-        return output.strip()
-    except Exception as e:
-        print COLOR_BOLD_RED + "Could not execute", command, e, COLOR_END
-        print "Terminating early"
-        exit(1)
+            if p.returncode != 0:
+                raise Exception(error)
+            return output.strip()
+        except Exception as e:
+            print COLOR_BOLD_RED + "Could not execute", command, e, COLOR_END
+            print "Terminating early"
+            exit(1)
 
 if __name__ == '__main__':
-    check_parameters(sys.argv)
+    if len(sys.argv) < 3:
+        print "No argument provided. Exiting."
+        print "Usage: %s <username> <github token>" % sys.argv[0]
+        exit(1)
 
     username = sys.argv[1]
     token = sys.argv[2]
 
-    print "Updating repos from", COLOR_BOLD_GREEN + username, COLOR_END
-    user_data = get_user_data(username, token)
-
-    repos = get_repos(user_data.repos_url, user_data.organizations_url, token)
-    repos = filter_repo_names(repos)
-    for repo in repos:
-        print COLOR_BOLD_YELLOW + '{:-^60}'.format(repo.name) + COLOR_END
-        update_repo(repo.url, token)
+    RepoUpdater(username, token).update()
