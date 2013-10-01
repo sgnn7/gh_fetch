@@ -41,6 +41,7 @@ class RepoUpdater(object):
 
         self.debug = args.debug
         self.include_org_forks = args.include_org_forks
+        self.include_public_org_repos = args.include_public_org_repos
         self.exclude_forks = args.exclude_forks
         self.include_own_repos = args.include_own
 
@@ -79,11 +80,12 @@ class RepoUpdater(object):
         for org in orgs:
             org_repos = self.get_json(org.repos_url)
 
-            priv_org_repos = [repo for repo in org_repos if repo.private]
+            if not self.include_public_org_repos:
+                org_repos = [repo for repo in org_repos if repo.private]
             if not self.include_org_forks:
-                priv_org_repos = [repo for repo in priv_org_repos if not repo.fork]
+                org_repos = [repo for repo in org_repos if not repo.fork]
 
-            repos += priv_org_repos
+            repos += org_repos
 
         if self.debug:
             print "Available repos:", self.get_color_str(str(len(repos)), Color.GREEN)
@@ -174,14 +176,15 @@ class RepoUpdater(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Retrieve and/or update local copies of GitHub-hosted repos')
-    parser.add_argument('username',            help='GitHub username')
-    parser.add_argument('token',               help='GitHub token tied to the username')
+    parser.add_argument('username',                   help='GitHub username')
+    parser.add_argument('token',                      help='GitHub token tied to the username')
 
-    parser.add_argument('-d', '--directory',   help='Destination directory')
-    parser.add_argument('-i', '--include-own', help='Include own repositories', action='store_false')
-    parser.add_argument('--exclude-forks',     help='Exclude forked repositories', action='store_true')
-    parser.add_argument('--include-org-forks', help='Exclude forked repositories in orgs', action='store_true')
-    parser.add_argument('--debug',             help='Enable debugging', action='store_true')
+    parser.add_argument('-d', '--directory',          help='Destination directory')
+    parser.add_argument('-i', '--include-own',        help='Include own repositories', action='store_false')
+    parser.add_argument('--exclude-forks',            help='Exclude forked repositories', action='store_true')
+    parser.add_argument('--include-org-forks',        help='Exclude forked repositories in orgs', action='store_true')
+    parser.add_argument('--include-public-org-repos', help='Include public repositories in orgs', action='store_true')
+    parser.add_argument('--debug',                    help='Enable debugging', action='store_true')
 
     args = AttributeDict(vars(parser.parse_args()))
 
