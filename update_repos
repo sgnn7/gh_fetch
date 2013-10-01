@@ -204,6 +204,9 @@ if __name__ == '__main__':
     parser.add_argument('token', \
             help='GitHub auth token for that username. \
             You can create one at https://github.com/settings/applications')
+    parser.add_argument('--version', \
+            action='version', \
+            version='%(prog)s v0.7')
 
     parser.add_argument('-d', '--directory', \
             help='Target directory for cloning and fetching')
