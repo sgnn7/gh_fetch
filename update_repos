@@ -161,7 +161,7 @@ class RepoUpdater(object):
         return True
 
     def get_sha_str(self, branch, directory):
-        sha=self.system_exec(GIT_LOG_CMD.format(branch), directory, False)
+        sha=self.system_exec(GIT_LOG_CMD.format(branch), directory, False, True)
         return self.get_color_str(sha[:7], Color.GREEN)
 
     def print_start_sha(self, branch, directory):
@@ -179,7 +179,7 @@ class RepoUpdater(object):
         self.system_exec(GIT_FETCH_CMD, target_directory, False)
         print self.get_sha_str(repo_data.default_branch, target_directory)
 
-    def system_exec(self, command, directory=None, show_output=True):
+    def system_exec(self, command, directory=None, show_output=True, ignore_error=False):
         if not directory:
             directory = self.cwd
 
@@ -197,9 +197,12 @@ class RepoUpdater(object):
             return output.strip()
 
         except Exception as err:
-            print Color.RED + "Could not execute", command, err, Color.END
-            print "Terminating early"
-            exit(1)
+            if ignore_error:
+                return "Unknown"
+            else:
+                print Color.RED + "Could not execute", command, err, Color.END
+                print "Terminating early"
+                exit(1)
 
     @staticmethod
     def get_color_str(text, color):
