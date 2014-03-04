@@ -177,6 +177,8 @@ class RepoUpdater(object):
     def update_repo(self, repo_url):
         repo_data = self.get_json(repo_url)
         target_directory = os.path.join(self.cwd, repo_data.name)
+        if self.mirror:
+            target_directory += '.git'
 
         if self.try_clone(repo_data, target_directory):
             return
