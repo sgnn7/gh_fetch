@@ -167,7 +167,11 @@ class RepoUpdater(object):
         return True
 
     def get_sha_str(self, branch, directory):
-        sha = self.system_exec(GIT_SHA_CMD % 'origin/' + branch, directory, False, True)
+        if self.mirror:
+            sha_cmd = GIT_SHA_CMD % branch
+        else:
+            sha_cmd = GIT_SHA_CMD % 'origin/' + branch
+        sha = self.system_exec(sha_cmd, directory, False, True)
         return self.get_color_str(sha, Color.GREEN)
 
     def print_start_sha(self, branch, directory):
