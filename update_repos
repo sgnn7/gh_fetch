@@ -18,7 +18,7 @@ GITHUB_API_HOST = 'https://api.github.com'
 
 GIT_CLONE_CMD = 'git clone --recurse-submodules https://%s@github.com/%s'
 GIT_MIRROR_CMD = 'git clone --mirror https://%s@github.com/%s'
-GIT_LOG_CMD = 'git log origin/{0} -1 --format=%H'
+GIT_SHA_CMD = 'git rev-parse --short %s'
 GIT_FETCH_CMD = 'git fetch'
 
 USER_DETAILS_PATH = '/users/%s'
@@ -167,8 +167,8 @@ class RepoUpdater(object):
         return True
 
     def get_sha_str(self, branch, directory):
-        sha=self.system_exec(GIT_LOG_CMD.format(branch), directory, False, True)
-        return self.get_color_str(sha[:7], Color.GREEN)
+        sha = self.system_exec(GIT_SHA_CMD % 'origin/' + branch, directory, False, True)
+        return self.get_color_str(sha, Color.GREEN)
 
     def print_start_sha(self, branch, directory):
         print("- " + self.get_color_str(branch, Color.GREEN) + " @ " \
