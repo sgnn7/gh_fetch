@@ -109,7 +109,7 @@ class RepoUpdater(object):
     def get_repos(self, repos_url, orgs_url):
         repos = []
         if self.debug:
-            print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
+            print "Getting repo data from", self.get_color_str(repos_url, Color.GREEN)
 
         own_repos, repo_count = self.get_own_repos(repos_url)
         if not self.exclude_own:
@@ -123,7 +123,7 @@ class RepoUpdater(object):
             print "Available repos:", self.get_color_str(str(len(repos)), Color.GREEN)
             for repo in repos:
                 owner = repo.owner.login
-                print " -", this.get_color_str(repo.name, Color.YELLOW)
+                print " -", self.get_color_str(repo.name, Color.YELLOW)
                 print " " * 5, repo.description
 
         excluded_repos = repo_count + org_repo_count - len(repos)
