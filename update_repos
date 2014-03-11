@@ -17,7 +17,8 @@ LISTING_FIX_PARAM = '&per_page=150'
 GITHUB_API_HOST = 'https://api.github.com'
 
 GIT_CLONE_CMD = 'git clone --recurse-submodules https://%s@github.com/%s'
-GIT_LOG_CMD = 'git log origin/{0} -1 --format=%H'
+GIT_MIRROR_CMD = 'git clone --mirror https://%s@github.com/%s'
+GIT_SHA_CMD = 'git rev-parse --short %s'
 GIT_FETCH_CMD = 'git fetch'
 
 USER_DETAILS_PATH = '/users/%s'
@@ -40,6 +41,7 @@ class RepoUpdater(object):
         self.cwd = args.directory if args.directory else os.getcwd()
 
         self.debug = args.debug
+        self.mirror = args.mirror
         self.exclude_orgs = args.exclude_orgs
         self.include_org_forks = args.include_org_forks
         self.include_public_org_repos = args.include_public_org_repos
@@ -107,7 +109,7 @@ class RepoUpdater(object):
     def get_repos(self, repos_url, orgs_url):
         repos = []
         if self.debug:
-            print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
+            print "Getting repo data from", self.get_color_str(repos_url, Color.GREEN)
 
         own_repos, repo_count = self.get_own_repos(repos_url)
         if not self.exclude_own:
@@ -121,7 +123,7 @@ class RepoUpdater(object):
             print "Available repos:", self.get_color_str(str(len(repos)), Color.GREEN)
             for repo in repos:
                 owner = repo.owner.login
-                print " -", this.get_color_str(repo.name, Color.YELLOW)
+                print " -", self.get_color_str(repo.name, Color.YELLOW)
                 print " " * 5, repo.description
 
         excluded_repos = repo_count + org_repo_count - len(repos)
@@ -155,14 +157,22 @@ class RepoUpdater(object):
             return False
 
         print "Need to clone", repo_data.name
-        self.system_exec(GIT_CLONE_CMD % (self.auth_token, repo_data.full_name))
+        if self.mirror:
+            clone_cmd = GIT_MIRROR_CMD
+        else:
+            clone_cmd = GIT_CLONE_CMD
+        self.system_exec(clone_cmd % (self.auth_token, repo_data.full_name))
 
         print "Finished cloning"
         return True
 
     def get_sha_str(self, branch, directory):
-        sha=self.system_exec(GIT_LOG_CMD.format(branch), directory, False, True)
-        return self.get_color_str(sha[:7], Color.GREEN)
+        if self.mirror:
+            sha_cmd = GIT_SHA_CMD % branch
+        else:
+            sha_cmd = GIT_SHA_CMD % 'origin/' + branch
+        sha = self.system_exec(sha_cmd, directory, False, True)
+        return self.get_color_str(sha, Color.GREEN)
 
     def print_start_sha(self, branch, directory):
         print("- " + self.get_color_str(branch, Color.GREEN) + " @ " \
@@ -171,6 +181,8 @@ class RepoUpdater(object):
     def update_repo(self, repo_url):
         repo_data = self.get_json(repo_url)
         target_directory = os.path.join(self.cwd, repo_data.name)
+        if self.mirror:
+            target_directory += '.git'
 
         if self.try_clone(repo_data, target_directory):
             return
@@ -223,6 +235,9 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--directory', \
             help='Target directory for cloning and fetching')
 
+    parser.add_argument('-m', '--mirror', \
+            help='Mirror bare repositories instead of making full checkouts', \
+            action='store_true')
     parser.add_argument('-x', '--exclude-own', \
             help='Exclude own repositories in the updates', \
             action='store_true')
