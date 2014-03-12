@@ -238,8 +238,9 @@ class RepoUpdater(object):
             return process.returncode, output, error
 
         except Exception as err:
-            print Color.RED + "Could not execute", command, err, Color.END
-            print "Terminating early"
+            print >>sys.stderr, Color.RED + "Could not execute", command
+            print >>sys.stderr, err, Color.END
+            print >>sys.stderr, "Terminating early"
             exit(1)
 
     @staticmethod
