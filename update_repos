@@ -199,7 +199,7 @@ class RepoUpdater(object):
             sha_cmd = GIT_SHA_CMD % branch
         else:
             sha_cmd = GIT_SHA_CMD % 'origin/' + branch
-        sha = self.system_exec(sha_cmd, directory, False, True)
+        sha = self.system_exec(sha_cmd, directory, False, True)[1]
         return self.get_color_str(sha, Color.GREEN)
 
     def print_start_sha(self, branch, directory):
@@ -225,19 +225,21 @@ class RepoUpdater(object):
         try:
             process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
             (output, error) = process.communicate()
+            output = output.strip()
+            error = error.strip()
 
             if show_output:
-                print output.strip()
+                print output
                 sys.stdout.flush()
 
             if process.returncode != 0:
                 raise Exception(error)
 
-            return output.strip()
+            return process.returncode, output, error
 
         except Exception as err:
             if ignore_error:
-                return "Unknown"
+                return process.returncode, output, error
             else:
                 print Color.RED + "Could not execute", command, err, Color.END
                 print "Terminating early"
