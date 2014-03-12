@@ -189,7 +189,17 @@ class RepoUpdater(object):
         else:
             clone_url = GIT_CLONE_API_URL % (self.auth_token,
                                              repo_data.full_name)
-        self.system_exec(GIT_CLONE_CMD % (clone_opts, clone_url))
+        clone_cmd = GIT_CLONE_CMD % (clone_opts, clone_url)
+
+        # This is sad. Github will tell us a repo has a wiki, but if the
+        # wiki hasn't actually been initialized, it won't exist. Try to
+        # catch that issue.
+        is_wiki = repo_data.name.endswith('.wiki')
+        ret = self.system_exec(clone_cmd, ignore_error=is_wiki)
+        if is_wiki and ret[0] != 0:
+            print "Wiki for %s not initialized, skipping" \
+                % repo_data.name.rpartition('.wiki')[0]
+            return True
 
         print "Finished cloning"
         return True
