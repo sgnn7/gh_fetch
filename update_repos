@@ -23,6 +23,8 @@ GIT_FETCH_CMD = 'git fetch'
 
 USER_DETAILS_PATH = '/users/%s'
 
+DEFAULT_TOKEN_FILE = os.path.expanduser('~/.config/ghtoken')
+
 class Color:
     GREEN = "\033[1;32m"
     BLUE = "\033[1;34m"
@@ -49,6 +51,18 @@ class RepoUpdater(object):
         self.exclude_forks = args.exclude_forks
         self.exclude_own = args.exclude_own
         self.include_wikis = args.include_wikis
+
+        # Read a token file if necessary
+        if self.auth_token is None:
+            try:
+                with open(args.token_file, 'r') as tfile:
+                    self.auth_token = tfile.read().strip()
+            except IOError as err:
+                print >>sys.stderr, Color.RED + \
+                    "Could not open token file %s: %s" % (args.token_file, err), \
+                    Color.END
+                print >>sys.stderr, "Terminating early"
+                exit(1)
 
         if self.debug:
             # We don't want this printed
@@ -263,6 +277,7 @@ if __name__ == '__main__':
     parser.add_argument('username', \
             help='GitHub username that will be used for cloning and fetching')
     parser.add_argument('token', \
+            nargs='?', \
             help='GitHub auth token for that username. \
             You can create one at https://github.com/settings/applications')
     parser.add_argument('--version', \
@@ -272,6 +287,9 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--directory', \
             help='Target directory for cloning and fetching')
 
+    parser.add_argument('-t', '--token-file', \
+            default=DEFAULT_TOKEN_FILE, \
+            help='File containing the github token')
     parser.add_argument('-s', '--ssh', \
             help='Fetch repositories using ssh', \
             action='store_true')
