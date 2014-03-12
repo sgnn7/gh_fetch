@@ -16,8 +16,8 @@ ACCESS_TOKEN_PARAM = '?access_token=%s'
 LISTING_FIX_PARAM = '&per_page=150'
 GITHUB_API_HOST = 'https://api.github.com'
 
-GIT_CLONE_CMD = 'git clone --recurse-submodules https://%s@github.com/%s'
-GIT_MIRROR_CMD = 'git clone --mirror https://%s@github.com/%s'
+GIT_CLONE_CMD = 'git clone %s %s'
+GIT_CLONE_API_URL = 'https://%s@github.com/%s'
 GIT_SHA_CMD = 'git rev-parse --short %s'
 GIT_FETCH_CMD = 'git fetch'
 
@@ -41,6 +41,7 @@ class RepoUpdater(object):
         self.cwd = args.directory if args.directory else os.getcwd()
 
         self.debug = args.debug
+        self.ssh = args.ssh
         self.mirror = args.mirror
         self.exclude_orgs = args.exclude_orgs
         self.include_org_forks = args.include_org_forks
@@ -158,10 +159,15 @@ class RepoUpdater(object):
 
         print "Need to clone", repo_data.name
         if self.mirror:
-            clone_cmd = GIT_MIRROR_CMD
+            clone_opts = '--mirror'
         else:
-            clone_cmd = GIT_CLONE_CMD
-        self.system_exec(clone_cmd % (self.auth_token, repo_data.full_name))
+            clone_opts = '--recurse-submodules'
+        if self.ssh:
+            clone_url = repo_data.ssh_url
+        else:
+            clone_url = GIT_CLONE_API_URL % (self.auth_token,
+                                             repo_data.full_name)
+        self.system_exec(GIT_CLONE_CMD % (clone_opts, clone_url))
 
         print "Finished cloning"
         return True
@@ -235,6 +241,9 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--directory', \
             help='Target directory for cloning and fetching')
 
+    parser.add_argument('-s', '--ssh', \
+            help='Fetch repositories using ssh', \
+            action='store_true')
     parser.add_argument('-m', '--mirror', \
             help='Mirror bare repositories instead of making full checkouts', \
             action='store_true')
