@@ -68,7 +68,7 @@ class RepoUpdater(object):
         repos = self.filter_repo_names(repos, excluded_repos)
         for repo in repos:
             print self.get_color_str('{:-^60}'.format(repo.name), Color.YELLOW)
-            self.update_repo(repo.url)
+            self.update_repo(repo)
 
     def get_json(self, uri):
         uri += ACCESS_TOKEN_PARAM % self.auth_token + LISTING_FIX_PARAM
@@ -206,8 +206,7 @@ class RepoUpdater(object):
         print("- " + self.get_color_str(branch, Color.GREEN) + " @ " \
                 + self.get_sha_str(branch, directory) + ' ..'),
 
-    def update_repo(self, repo_url):
-        repo_data = self.get_json(repo_url)
+    def update_repo(self, repo_data):
         target_directory = os.path.join(self.cwd, repo_data.name)
         if self.mirror:
             target_directory += '.git'
