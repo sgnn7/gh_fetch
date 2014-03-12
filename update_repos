@@ -232,18 +232,15 @@ class RepoUpdater(object):
                 print output
                 sys.stdout.flush()
 
-            if process.returncode != 0:
+            if process.returncode != 0 and not ignore_error:
                 raise Exception(error)
 
             return process.returncode, output, error
 
         except Exception as err:
-            if ignore_error:
-                return process.returncode, output, error
-            else:
-                print Color.RED + "Could not execute", command, err, Color.END
-                print "Terminating early"
-                exit(1)
+            print Color.RED + "Could not execute", command, err, Color.END
+            print "Terminating early"
+            exit(1)
 
     @staticmethod
     def get_color_str(text, color):
