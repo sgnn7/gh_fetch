@@ -48,6 +48,7 @@ class RepoUpdater(object):
         self.include_public_org_repos = args.include_public_org_repos
         self.exclude_forks = args.exclude_forks
         self.exclude_own = args.exclude_own
+        self.include_wikis = args.include_wikis
 
         if self.debug:
             # We don't want this printed
@@ -80,8 +81,28 @@ class RepoUpdater(object):
     def get_user_data(self):
         return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH % self.username)
 
+    def get_wiki_repos(self, repos):
+        wikis = []
+        if not self.include_wikis:
+            return wikis
+        for repo in repos:
+            if repo.has_wiki:
+                wiki = AttributeDict(repo)
+                # Adjust the name and hardcode master as the default branch
+                wiki.name += '.wiki'
+                wiki.full_name += '.wiki'
+                wiki.ssh_url = wiki.ssh_url.rpartition('.git')[0] \
+                               + '.wiki.git'
+                wiki.default_branch = 'master'
+                wiki.description += ' - Wiki'
+                wiki.has_wiki = False
+                wikis.append(wiki)
+
+        return wikis
+
     def get_own_repos(self, repos_url):
         repos = self.get_json(repos_url)
+        repos += self.get_wiki_repos(repos)
         repo_count = len(repos)
 
         if self.exclude_forks:
@@ -96,6 +117,7 @@ class RepoUpdater(object):
         orgs = self.get_json(orgs_url)
         for org in orgs:
             org_repos = self.get_json(org.repos_url)
+            org_repos += self.get_wiki_repos(org_repos)
             repo_count += len(org_repos)
 
             if not self.include_public_org_repos:
@@ -261,6 +283,9 @@ if __name__ == '__main__':
             action='store_true')
     parser.add_argument('--include-public-org-repos', \
             help='Include public repos that are in user\'s orgs', \
+            action='store_true')
+    parser.add_argument('--include-wikis', \
+            help='Include repository wikis', \
             action='store_true')
 
     parser.add_argument('--debug', \
