@@ -11,10 +11,12 @@ gh_fetch
 
 ```
 $ ../update_repos -h
-usage: update_repos [-h] [--version] [-d DIRECTORY] [-x] [--exclude-forks]
-                    [--exclude-orgs] [--include-org-forks]
-                    [--include-public-org-repos] [--debug]
-                    username token
+$ ./update_repos -h
+usage: update_repos [-h] [--version] [-d DIRECTORY] [-t TOKEN_FILE] [-s] [-m]
+                    [-x] [--exclude-forks] [--exclude-orgs]
+                    [--include-org-forks] [--include-public-org-repos]
+                    [--include-wikis] [--debug]
+                    username [token]
 
 Retrieve and/or update local copies of GitHub-hosted repos
 
@@ -29,6 +31,11 @@ optional arguments:
   --version             show program's version number and exit
   -d DIRECTORY, --directory DIRECTORY
                         Target directory for cloning and fetching
+  -t TOKEN_FILE, --token-file TOKEN_FILE
+                        File containing the github token
+  -s, --ssh             Fetch repositories using ssh
+  -m, --mirror          Mirror bare repositories instead of making full
+                        checkouts
   -x, --exclude-own     Exclude own repositories in the updates
   --exclude-forks       Exclude forked repositories from the updates
   --exclude-orgs        Exclude repos that are in user's orgs (this does not
@@ -36,6 +43,7 @@ optional arguments:
   --include-org-forks   Include forked repos that are in user's orgs
   --include-public-org-repos
                         Include public repos that are in user's orgs
+  --include-wikis       Include repository wikis
   --debug               Enable debugging output
 ```
 
