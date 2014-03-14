@@ -10,7 +10,6 @@ gh_fetch
 **gh_fetch** is designed to fix all of these problems by automating the process to the maximum extent possible. This tool will go through your (or another account's) GitHub repos both public and private including repositories from organizations you are a member of and fetch the most recent changes for it, cloning the relevant repos if they are not already downloaded. Feature set will be expanding per my current needs but you are free to fork and issue a pull request.
 
 ```
-$ ../update_repos -h
 $ ./update_repos -h
 usage: update_repos [-h] [--version] [-d DIRECTORY] [-t TOKEN_FILE] [-s] [-m]
                     [-x] [--exclude-forks] [--exclude-orgs]
