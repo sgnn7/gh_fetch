@@ -16,12 +16,14 @@ ACCESS_TOKEN_PARAM = '?access_token=%s'
 LISTING_FIX_PARAM = '&per_page=150'
 GITHUB_API_HOST = 'https://api.github.com'
 
-GIT_CLONE_CMD = 'git clone --recurse-submodules https://%s@github.com/%s'
-GIT_MIRROR_CMD = 'git clone --mirror https://%s@github.com/%s'
+GIT_CLONE_CMD = 'git clone %s %s'
+GIT_CLONE_API_URL = 'https://%s@github.com/%s'
 GIT_SHA_CMD = 'git rev-parse --short %s'
 GIT_FETCH_CMD = 'git fetch'
 
 USER_DETAILS_PATH = '/users/%s'
+
+DEFAULT_TOKEN_FILE = os.path.expanduser('~/.config/ghtoken')
 
 class Color:
     GREEN = "\033[1;32m"
@@ -41,12 +43,26 @@ class RepoUpdater(object):
         self.cwd = args.directory if args.directory else os.getcwd()
 
         self.debug = args.debug
+        self.ssh = args.ssh
         self.mirror = args.mirror
         self.exclude_orgs = args.exclude_orgs
         self.include_org_forks = args.include_org_forks
         self.include_public_org_repos = args.include_public_org_repos
         self.exclude_forks = args.exclude_forks
         self.exclude_own = args.exclude_own
+        self.include_wikis = args.include_wikis
+
+        # Read a token file if necessary
+        if self.auth_token is None:
+            try:
+                with open(args.token_file, 'r') as tfile:
+                    self.auth_token = tfile.read().strip()
+            except IOError as err:
+                print >>sys.stderr, Color.RED + \
+                    "Could not open token file %s: %s" % (args.token_file, err), \
+                    Color.END
+                print >>sys.stderr, "Terminating early"
+                exit(1)
 
         if self.debug:
             # We don't want this printed
@@ -66,7 +82,7 @@ class RepoUpdater(object):
         repos = self.filter_repo_names(repos, excluded_repos)
         for repo in repos:
             print self.get_color_str('{:-^60}'.format(repo.name), Color.YELLOW)
-            self.update_repo(repo.url)
+            self.update_repo(repo)
 
     def get_json(self, uri):
         uri += ACCESS_TOKEN_PARAM % self.auth_token + LISTING_FIX_PARAM
@@ -79,8 +95,28 @@ class RepoUpdater(object):
     def get_user_data(self):
         return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH % self.username)
 
+    def get_wiki_repos(self, repos):
+        wikis = []
+        if not self.include_wikis:
+            return wikis
+        for repo in repos:
+            if repo.has_wiki:
+                wiki = AttributeDict(repo)
+                # Adjust the name and hardcode master as the default branch
+                wiki.name += '.wiki'
+                wiki.full_name += '.wiki'
+                wiki.ssh_url = wiki.ssh_url.rpartition('.git')[0] \
+                               + '.wiki.git'
+                wiki.default_branch = 'master'
+                wiki.description += ' - Wiki'
+                wiki.has_wiki = False
+                wikis.append(wiki)
+
+        return wikis
+
     def get_own_repos(self, repos_url):
         repos = self.get_json(repos_url)
+        repos += self.get_wiki_repos(repos)
         repo_count = len(repos)
 
         if self.exclude_forks:
@@ -95,6 +131,7 @@ class RepoUpdater(object):
         orgs = self.get_json(orgs_url)
         for org in orgs:
             org_repos = self.get_json(org.repos_url)
+            org_repos += self.get_wiki_repos(org_repos)
             repo_count += len(org_repos)
 
             if not self.include_public_org_repos:
@@ -158,10 +195,25 @@ class RepoUpdater(object):
 
         print "Need to clone", repo_data.name
         if self.mirror:
-            clone_cmd = GIT_MIRROR_CMD
+            clone_opts = '--mirror'
         else:
-            clone_cmd = GIT_CLONE_CMD
-        self.system_exec(clone_cmd % (self.auth_token, repo_data.full_name))
+            clone_opts = '--recurse-submodules'
+        if self.ssh:
+            clone_url = repo_data.ssh_url
+        else:
+            clone_url = GIT_CLONE_API_URL % (self.auth_token,
+                                             repo_data.full_name)
+        clone_cmd = GIT_CLONE_CMD % (clone_opts, clone_url)
+
+        # This is sad. Github will tell us a repo has a wiki, but if the
+        # wiki hasn't actually been initialized, it won't exist. Try to
+        # catch that issue.
+        is_wiki = repo_data.name.endswith('.wiki')
+        ret = self.system_exec(clone_cmd, ignore_error=is_wiki)
+        if is_wiki and ret[0] != 0:
+            print "Wiki for %s not initialized, skipping" \
+                % repo_data.name.rpartition('.wiki')[0]
+            return True
 
         print "Finished cloning"
         return True
@@ -171,15 +223,14 @@ class RepoUpdater(object):
             sha_cmd = GIT_SHA_CMD % branch
         else:
             sha_cmd = GIT_SHA_CMD % 'origin/' + branch
-        sha = self.system_exec(sha_cmd, directory, False, True)
+        sha = self.system_exec(sha_cmd, directory, False, True)[1]
         return self.get_color_str(sha, Color.GREEN)
 
     def print_start_sha(self, branch, directory):
         print("- " + self.get_color_str(branch, Color.GREEN) + " @ " \
                 + self.get_sha_str(branch, directory) + ' ..'),
 
-    def update_repo(self, repo_url):
-        repo_data = self.get_json(repo_url)
+    def update_repo(self, repo_data):
         target_directory = os.path.join(self.cwd, repo_data.name)
         if self.mirror:
             target_directory += '.git'
@@ -198,23 +249,23 @@ class RepoUpdater(object):
         try:
             process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
             (output, error) = process.communicate()
+            output = output.strip()
+            error = error.strip()
 
             if show_output:
-                print output.strip()
+                print output
                 sys.stdout.flush()
 
-            if process.returncode != 0:
+            if process.returncode != 0 and not ignore_error:
                 raise Exception(error)
 
-            return output.strip()
+            return process.returncode, output, error
 
         except Exception as err:
-            if ignore_error:
-                return "Unknown"
-            else:
-                print Color.RED + "Could not execute", command, err, Color.END
-                print "Terminating early"
-                exit(1)
+            print >>sys.stderr, Color.RED + "Could not execute", command
+            print >>sys.stderr, err, Color.END
+            print >>sys.stderr, "Terminating early"
+            exit(1)
 
     @staticmethod
     def get_color_str(text, color):
@@ -226,6 +277,7 @@ if __name__ == '__main__':
     parser.add_argument('username', \
             help='GitHub username that will be used for cloning and fetching')
     parser.add_argument('token', \
+            nargs='?', \
             help='GitHub auth token for that username. \
             You can create one at https://github.com/settings/applications')
     parser.add_argument('--version', \
@@ -235,6 +287,12 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--directory', \
             help='Target directory for cloning and fetching')
 
+    parser.add_argument('-t', '--token-file', \
+            default=DEFAULT_TOKEN_FILE, \
+            help='File containing the github token')
+    parser.add_argument('-s', '--ssh', \
+            help='Fetch repositories using ssh', \
+            action='store_true')
     parser.add_argument('-m', '--mirror', \
             help='Mirror bare repositories instead of making full checkouts', \
             action='store_true')
@@ -252,6 +310,9 @@ if __name__ == '__main__':
             action='store_true')
     parser.add_argument('--include-public-org-repos', \
             help='Include public repos that are in user\'s orgs', \
+            action='store_true')
+    parser.add_argument('--include-wikis', \
+            help='Include repository wikis', \
             action='store_true')
 
     parser.add_argument('--debug', \
