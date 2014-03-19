@@ -32,6 +32,9 @@ class Color:
     RED = "\033[1;31m"
     END = "\033[0m"
 
+def get_color_str(text, color):
+    return color + str(text) + Color.END
+
 class AttributeDict(dict):
     def __getattr__(self, attr):
         return self[attr]
@@ -69,19 +72,19 @@ class RepoUpdater(object):
             del args['token']
             print "Current configuration: "
             for arg in args:
-                print arg, ":", self.get_color_str(args[arg], Color.GREEN)
+                print arg, ":", get_color_str(args[arg], Color.GREEN)
 
     def update(self):
         if not os.path.isdir(self.cwd):
             os.makedirs(self.cwd)
 
-        print "User:", self.get_color_str(self.username, Color.GREEN)
+        print "User:", get_color_str(self.username, Color.GREEN)
         user_data = self.get_user_data()
 
         repos, excluded_repos = self.get_repos(user_data.repos_url, user_data.organizations_url)
         repos = self.filter_repo_names(repos, excluded_repos)
         for repo in repos:
-            print self.get_color_str('{:-^60}'.format(repo.name), Color.YELLOW)
+            print get_color_str('{:-^60}'.format(repo.name), Color.YELLOW)
             self.update_repo(repo)
 
     def get_json(self, uri):
@@ -146,7 +149,7 @@ class RepoUpdater(object):
     def get_repos(self, repos_url, orgs_url):
         repos = []
         if self.debug:
-            print "Getting repo data from", self.get_color_str(repos_url, Color.GREEN)
+            print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
 
         own_repos, repo_count = self.get_own_repos(repos_url)
         if not self.exclude_own:
@@ -157,10 +160,10 @@ class RepoUpdater(object):
             repos += org_repos
 
         if self.debug:
-            print "Available repos:", self.get_color_str(str(len(repos)), Color.GREEN)
+            print "Available repos:", get_color_str(str(len(repos)), Color.GREEN)
             for repo in repos:
                 owner = repo.owner.login
-                print " -", self.get_color_str(repo.name, Color.YELLOW)
+                print " -", get_color_str(repo.name, Color.YELLOW)
                 print " " * 5, repo.description
 
         excluded_repos = repo_count + org_repo_count - len(repos)
@@ -179,7 +182,7 @@ class RepoUpdater(object):
 
         ignored_repos_str = " (" + str(filtered_repos) + " filtered, " + str(excluded_repos) + " excluded)"
         repo_count_str = str(original_repos - filtered_repos) + " / " + str(original_repos)
-        print "Fetching repos:", self.get_color_str(repo_count_str + ignored_repos_str, Color.GREEN)
+        print "Fetching repos:", get_color_str(repo_count_str + ignored_repos_str, Color.GREEN)
 
         for repo in repos:
             owner = repo.owner.login
@@ -224,10 +227,10 @@ class RepoUpdater(object):
         else:
             sha_cmd = GIT_SHA_CMD % 'origin/' + branch
         sha = self.system_exec(sha_cmd, directory, False, True)[1]
-        return self.get_color_str(sha, Color.GREEN)
+        return get_color_str(sha, Color.GREEN)
 
     def print_start_sha(self, branch, directory):
-        print("- " + self.get_color_str(branch, Color.GREEN) + " @ " \
+        print("- " + get_color_str(branch, Color.GREEN) + " @ " \
                 + self.get_sha_str(branch, directory) + ' ..'),
 
     def update_repo(self, repo_data):
@@ -266,10 +269,6 @@ class RepoUpdater(object):
             print >>sys.stderr, err, Color.END
             print >>sys.stderr, "Terminating early"
             exit(1)
-
-    @staticmethod
-    def get_color_str(text, color):
-        return color + str(text) + Color.END
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Retrieve and/or update local copies of GitHub-hosted repos')
