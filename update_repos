@@ -35,6 +35,31 @@ class Color:
 def get_color_str(text, color):
     return color + str(text) + Color.END
 
+def system_exec(command, directory=None, show_output=True, ignore_error=False):
+    if not directory:
+        directory = os.getcwd()
+
+    try:
+        process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
+        (output, error) = process.communicate()
+        output = output.strip()
+        error = error.strip()
+
+        if show_output:
+            print output
+            sys.stdout.flush()
+
+        if process.returncode != 0 and not ignore_error:
+            raise Exception(error)
+
+        return process.returncode, output, error
+
+    except Exception as err:
+        print >>sys.stderr, Color.RED + "Could not execute", command
+        print >>sys.stderr, err, Color.END
+        print >>sys.stderr, "Terminating early"
+        exit(1)
+
 class AttributeDict(dict):
     def __getattr__(self, attr):
         return self[attr]
@@ -212,7 +237,7 @@ class RepoUpdater(object):
         # wiki hasn't actually been initialized, it won't exist. Try to
         # catch that issue.
         is_wiki = repo_data.name.endswith('.wiki')
-        ret = self.system_exec(clone_cmd, ignore_error=is_wiki)
+        ret = system_exec(clone_cmd, self.cwd, ignore_error=is_wiki)
         if is_wiki and ret[0] != 0:
             print "Wiki for %s not initialized, skipping" \
                 % repo_data.name.rpartition('.wiki')[0]
@@ -226,7 +251,7 @@ class RepoUpdater(object):
             sha_cmd = GIT_SHA_CMD % branch
         else:
             sha_cmd = GIT_SHA_CMD % 'origin/' + branch
-        sha = self.system_exec(sha_cmd, directory, False, True)[1]
+        sha = system_exec(sha_cmd, directory, False, True)[1]
         return get_color_str(sha, Color.GREEN)
 
     def print_start_sha(self, branch, directory):
@@ -242,33 +267,8 @@ class RepoUpdater(object):
             return
 
         self.print_start_sha(repo_data.default_branch, target_directory)
-        self.system_exec(GIT_FETCH_CMD, target_directory, False)
+        system_exec(GIT_FETCH_CMD, target_directory, False)
         print self.get_sha_str(repo_data.default_branch, target_directory)
-
-    def system_exec(self, command, directory=None, show_output=True, ignore_error=False):
-        if not directory:
-            directory = self.cwd
-
-        try:
-            process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=directory)
-            (output, error) = process.communicate()
-            output = output.strip()
-            error = error.strip()
-
-            if show_output:
-                print output
-                sys.stdout.flush()
-
-            if process.returncode != 0 and not ignore_error:
-                raise Exception(error)
-
-            return process.returncode, output, error
-
-        except Exception as err:
-            print >>sys.stderr, Color.RED + "Could not execute", command
-            print >>sys.stderr, err, Color.END
-            print >>sys.stderr, "Terminating early"
-            exit(1)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Retrieve and/or update local copies of GitHub-hosted repos')
