@@ -66,10 +66,34 @@ class AttributeDict(dict):
     def __setattr__(self, attr, value):
         self[attr] = value
 
-class GitRepo(AttributeDict):
-    """GitHub code git repository"""
+class GitHubRepo(AttributeDict):
+    """Top-level class managing all content of a GitHub repository"""
+    def __init__(self, *args, **kwargs):
+        AttributeDict.__init__(self, *args, **kwargs)
+        self.content = []
+
     def configure(self, config):
         self.config = config
+
+        # Initialize the content repos
+        self.content.append(CodeRepo(self, config))
+        if self.config.include_wikis:
+            self.content.append(WikiRepo(self, config))
+
+    def update(self):
+        [repo.update() for repo in self.content]
+
+class CodeRepo(object):
+    """GitHub code git repository"""
+    def __init__(self, gh_repo, config):
+        self.config = config
+
+        # Copy the details we need from the JSON
+        self.name = gh_repo.name
+        self.full_name = gh_repo.full_name
+        self.ssh_url = gh_repo.ssh_url
+        self.default_branch = gh_repo.default_branch
+        self.description = gh_repo.description
 
     def try_clone(self, ignore_error=False):
         print "Using", self.target_directory
@@ -121,10 +145,10 @@ class GitRepo(AttributeDict):
         system_exec(GIT_FETCH_CMD, self.target_directory, False)
         print self.get_sha_str(self.default_branch, self.target_directory)
 
-class WikiRepo(GitRepo):
+class WikiRepo(CodeRepo):
     """GitHub wiki git repository"""
-    def __init__(self, *args, **kwargs):
-        GitRepo.__init__(self, *args, **kwargs)
+    def __init__(self, gh_repo, config):
+        CodeRepo.__init__(self, gh_repo, config)
 
         # Adjust the name and hardcode master as the default branch
         self.name += '.wiki'
@@ -138,7 +162,7 @@ class WikiRepo(GitRepo):
         # This is sad. Github will tell us a repo has a wiki, but if the
         # wiki hasn't actually been initialized, it won't exist. Reuse the
         # GitRepo clone code, but allow it to fail.
-        return GitRepo.try_clone(self, True)
+        return CodeRepo.try_clone(self, True)
 
 class RepoUpdater(object):
     def __init__(self, args):
@@ -196,19 +220,8 @@ class RepoUpdater(object):
         return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH
                              % self.args.username)
 
-    def get_wiki_repos(self, repos):
-        wikis = []
-        if not self.args.include_wikis:
-            return wikis
-        for repo in repos:
-            wiki = WikiRepo(repo)
-            wikis.append(wiki)
-
-        return wikis
-
     def get_own_repos(self, repos_url):
-        repos = self.get_json(repos_url, GitRepo, self.args)
-        repos += self.get_wiki_repos(repos)
+        repos = self.get_json(repos_url, GitHubRepo, self.args)
         repo_count = len(repos)
 
         if self.args.exclude_forks:
@@ -222,8 +235,7 @@ class RepoUpdater(object):
 
         orgs = self.get_json(orgs_url)
         for org in orgs:
-            org_repos = self.get_json(org.repos_url, GitRepo, self.args)
-            org_repos += self.get_wiki_repos(org_repos)
+            org_repos = self.get_json(org.repos_url, GitHubRepo, self.args)
             repo_count += len(org_repos)
 
             if not self.args.include_public_org_repos:
