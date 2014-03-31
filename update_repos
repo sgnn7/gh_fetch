@@ -133,7 +133,6 @@ class WikiRepo(GitRepo):
                        + '.wiki.git'
         self.default_branch = 'master'
         self.description += ' - Wiki'
-        self.has_wiki = False
 
     def try_clone(self, ignore_error=True):
         # This is sad. Github will tell us a repo has a wiki, but if the
@@ -202,9 +201,8 @@ class RepoUpdater(object):
         if not self.args.include_wikis:
             return wikis
         for repo in repos:
-            if repo.has_wiki:
-                wiki = WikiRepo(repo)
-                wikis.append(wiki)
+            wiki = WikiRepo(repo)
+            wikis.append(wiki)
 
         return wikis
 
