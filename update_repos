@@ -66,6 +66,81 @@ class AttributeDict(dict):
     def __setattr__(self, attr, value):
         self[attr] = value
 
+class GitRepo(AttributeDict):
+    """GitHub code git repository"""
+    def configure(self, config):
+        self.config = config
+
+    def try_clone(self, ignore_error=False):
+        print "Using", self.target_directory
+        if os.path.isdir(self.target_directory):
+            return False
+
+        print "Need to clone", self.name
+        if self.config.mirror:
+            clone_opts = '--mirror'
+        else:
+            clone_opts = '--recurse-submodules'
+        if self.config.ssh:
+            clone_url = self.ssh_url
+        else:
+            clone_url = GIT_CLONE_API_URL % (self.config.token,
+                                             self.full_name)
+        clone_cmd = GIT_CLONE_CMD % (clone_opts, clone_url)
+
+        # Let the caller decide if errors should be ignored.
+        ret = system_exec(clone_cmd, self.config.cwd, ignore_error=ignore_error)
+        if ignore_error and ret[0] != 0:
+            print "Repo for %s not initialized, skipping" % self.name
+            return True
+
+        print "Finished cloning"
+        return True
+
+    def get_sha_str(self, branch, directory):
+        if self.config.mirror:
+            sha_cmd = GIT_SHA_CMD % branch
+        else:
+            sha_cmd = GIT_SHA_CMD % 'origin/' + branch
+        sha = system_exec(sha_cmd, directory, False, True)[1]
+        return get_color_str(sha, Color.GREEN)
+
+    def print_start_sha(self, branch, directory):
+        print("- " + get_color_str(branch, Color.GREEN) + " @ " \
+                + self.get_sha_str(branch, directory) + ' ..'),
+
+    def update(self):
+        self.target_directory = os.path.join(self.config.cwd, self.name)
+        if self.config.mirror:
+            self.target_directory += '.git'
+
+        if self.try_clone(False):
+            return
+
+        self.print_start_sha(self.default_branch, self.target_directory)
+        system_exec(GIT_FETCH_CMD, self.target_directory, False)
+        print self.get_sha_str(self.default_branch, self.target_directory)
+
+class WikiRepo(GitRepo):
+    """GitHub wiki git repository"""
+    def __init__(self, *args, **kwargs):
+        GitRepo.__init__(self, *args, **kwargs)
+
+        # Adjust the name and hardcode master as the default branch
+        self.name += '.wiki'
+        self.full_name += '.wiki'
+        self.ssh_url = self.ssh_url.rpartition('.git')[0] \
+                       + '.wiki.git'
+        self.default_branch = 'master'
+        self.description += ' - Wiki'
+        self.has_wiki = False
+
+    def try_clone(self, ignore_error=True):
+        # This is sad. Github will tell us a repo has a wiki, but if the
+        # wiki hasn't actually been initialized, it won't exist. Reuse the
+        # GitRepo clone code, but allow it to fail.
+        return GitRepo.try_clone(self, True)
+
 class RepoUpdater(object):
     def __init__(self, args):
         # Keep a copy of the arguments dictionary
@@ -105,15 +180,18 @@ class RepoUpdater(object):
         repos = self.filter_repo_names(repos, excluded_repos)
         for repo in repos:
             print get_color_str('{:-^60}'.format(repo.name), Color.YELLOW)
-            self.update_repo(repo)
+            repo.update()
 
-    def get_json(self, uri):
+    def get_json(self, uri, obj_type=AttributeDict, config=None):
         uri += ACCESS_TOKEN_PARAM % self.args.token + LISTING_FIX_PARAM
 
         if self.args.debug:
             print "Trying:", uri
 
-        return json.loads(urlopen(uri).read(), object_hook=AttributeDict)
+        ret = json.loads(urlopen(uri).read(), object_hook=obj_type)
+        if config:
+            [obj.configure(config) for obj in ret]
+        return ret
 
     def get_user_data(self):
         return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH
@@ -125,21 +203,13 @@ class RepoUpdater(object):
             return wikis
         for repo in repos:
             if repo.has_wiki:
-                wiki = AttributeDict(repo)
-                # Adjust the name and hardcode master as the default branch
-                wiki.name += '.wiki'
-                wiki.full_name += '.wiki'
-                wiki.ssh_url = wiki.ssh_url.rpartition('.git')[0] \
-                               + '.wiki.git'
-                wiki.default_branch = 'master'
-                wiki.description += ' - Wiki'
-                wiki.has_wiki = False
+                wiki = WikiRepo(repo)
                 wikis.append(wiki)
 
         return wikis
 
     def get_own_repos(self, repos_url):
-        repos = self.get_json(repos_url)
+        repos = self.get_json(repos_url, GitRepo, self.args)
         repos += self.get_wiki_repos(repos)
         repo_count = len(repos)
 
@@ -154,7 +224,7 @@ class RepoUpdater(object):
 
         orgs = self.get_json(orgs_url)
         for org in orgs:
-            org_repos = self.get_json(org.repos_url)
+            org_repos = self.get_json(org.repos_url, GitRepo, self.args)
             org_repos += self.get_wiki_repos(org_repos)
             repo_count += len(org_repos)
 
@@ -211,60 +281,6 @@ class RepoUpdater(object):
             print " " * 5, repo.description
 
         return repos
-
-    def try_clone(self, repo_data, target_directory):
-        print "Using", target_directory
-        if os.path.isdir(target_directory):
-            return False
-
-        print "Need to clone", repo_data.name
-        if self.args.mirror:
-            clone_opts = '--mirror'
-        else:
-            clone_opts = '--recurse-submodules'
-        if self.args.ssh:
-            clone_url = repo_data.ssh_url
-        else:
-            clone_url = GIT_CLONE_API_URL % (self.args.token,
-                                             repo_data.full_name)
-        clone_cmd = GIT_CLONE_CMD % (clone_opts, clone_url)
-
-        # This is sad. Github will tell us a repo has a wiki, but if the
-        # wiki hasn't actually been initialized, it won't exist. Try to
-        # catch that issue.
-        is_wiki = repo_data.name.endswith('.wiki')
-        ret = system_exec(clone_cmd, self.args.cwd, ignore_error=is_wiki)
-        if is_wiki and ret[0] != 0:
-            print "Wiki for %s not initialized, skipping" \
-                % repo_data.name.rpartition('.wiki')[0]
-            return True
-
-        print "Finished cloning"
-        return True
-
-    def get_sha_str(self, branch, directory):
-        if self.args.mirror:
-            sha_cmd = GIT_SHA_CMD % branch
-        else:
-            sha_cmd = GIT_SHA_CMD % 'origin/' + branch
-        sha = system_exec(sha_cmd, directory, False, True)[1]
-        return get_color_str(sha, Color.GREEN)
-
-    def print_start_sha(self, branch, directory):
-        print("- " + get_color_str(branch, Color.GREEN) + " @ " \
-                + self.get_sha_str(branch, directory) + ' ..'),
-
-    def update_repo(self, repo_data):
-        target_directory = os.path.join(self.args.cwd, repo_data.name)
-        if self.args.mirror:
-            target_directory += '.git'
-
-        if self.try_clone(repo_data, target_directory):
-            return
-
-        self.print_start_sha(repo_data.default_branch, target_directory)
-        system_exec(GIT_FETCH_CMD, target_directory, False)
-        print self.get_sha_str(repo_data.default_branch, target_directory)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Retrieve and/or update local copies of GitHub-hosted repos')
