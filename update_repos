@@ -66,44 +66,37 @@ class AttributeDict(dict):
 
 class RepoUpdater(object):
     def __init__(self, args):
-        self.username = args.username
-        self.auth_token = args.token
-        self.cwd = args.directory if args.directory else os.getcwd()
+        # Keep a copy of the arguments dictionary
+        self.args = args
 
-        self.debug = args.debug
-        self.ssh = args.ssh
-        self.mirror = args.mirror
-        self.exclude_orgs = args.exclude_orgs
-        self.include_org_forks = args.include_org_forks
-        self.include_public_org_repos = args.include_public_org_repos
-        self.exclude_forks = args.exclude_forks
-        self.exclude_own = args.exclude_own
-        self.include_wikis = args.include_wikis
+        # Use current directory if unspecified
+        self.args.cwd = args.directory if args.directory else os.getcwd()
 
         # Read a token file if necessary
-        if self.auth_token is None:
+        if self.args.token is None:
             try:
-                with open(args.token_file, 'r') as tfile:
-                    self.auth_token = tfile.read().strip()
+                with open(self.args.token_file, 'r') as tfile:
+                    self.args.token = tfile.read().strip()
             except IOError as err:
                 print >>sys.stderr, Color.RED + \
-                    "Could not open token file %s: %s" % (args.token_file, err), \
+                    "Could not open token file %s: %s" \
+                    % (self.args.token_file, err), \
                     Color.END
                 print >>sys.stderr, "Terminating early"
                 exit(1)
 
-        if self.debug:
-            # We don't want this printed
-            del args['token']
+        if self.args.debug:
             print "Current configuration: "
-            for arg in args:
-                print arg, ":", get_color_str(args[arg], Color.GREEN)
+            for arg in self.args:
+                # We don't want this printed
+                if arg != 'token':
+                    print arg, ":", get_color_str(args[arg], Color.GREEN)
 
     def update(self):
-        if not os.path.isdir(self.cwd):
-            os.makedirs(self.cwd)
+        if not os.path.isdir(self.args.cwd):
+            os.makedirs(self.args.cwd)
 
-        print "User:", get_color_str(self.username, Color.GREEN)
+        print "User:", get_color_str(self.args.username, Color.GREEN)
         user_data = self.get_user_data()
 
         repos, excluded_repos = self.get_repos(user_data.repos_url, user_data.organizations_url)
@@ -113,19 +106,20 @@ class RepoUpdater(object):
             self.update_repo(repo)
 
     def get_json(self, uri):
-        uri += ACCESS_TOKEN_PARAM % self.auth_token + LISTING_FIX_PARAM
+        uri += ACCESS_TOKEN_PARAM % self.args.token + LISTING_FIX_PARAM
 
-        if self.debug:
+        if self.args.debug:
             print "Trying:", uri
 
         return json.loads(urlopen(uri).read(), object_hook=AttributeDict)
 
     def get_user_data(self):
-        return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH % self.username)
+        return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH
+                             % self.args.username)
 
     def get_wiki_repos(self, repos):
         wikis = []
-        if not self.include_wikis:
+        if not self.args.include_wikis:
             return wikis
         for repo in repos:
             if repo.has_wiki:
@@ -147,7 +141,7 @@ class RepoUpdater(object):
         repos += self.get_wiki_repos(repos)
         repo_count = len(repos)
 
-        if self.exclude_forks:
+        if self.args.exclude_forks:
             repos = [repo for repo in repos if not repo.fork]
 
         return repos, repo_count
@@ -162,9 +156,9 @@ class RepoUpdater(object):
             org_repos += self.get_wiki_repos(org_repos)
             repo_count += len(org_repos)
 
-            if not self.include_public_org_repos:
+            if not self.args.include_public_org_repos:
                 org_repos = [repo for repo in org_repos if repo.private]
-            if not self.include_org_forks:
+            if not self.args.include_org_forks:
                 org_repos = [repo for repo in org_repos if not repo.fork]
 
             all_orgs_repos += org_repos
@@ -173,18 +167,18 @@ class RepoUpdater(object):
 
     def get_repos(self, repos_url, orgs_url):
         repos = []
-        if self.debug:
+        if self.args.debug:
             print "Getting repo data from", get_color_str(repos_url, Color.GREEN)
 
         own_repos, repo_count = self.get_own_repos(repos_url)
-        if not self.exclude_own:
+        if not self.args.exclude_own:
             repos += own_repos
 
         org_repos, org_repo_count = self.get_org_repos(orgs_url)
-        if not self.exclude_orgs:
+        if not self.args.exclude_orgs:
             repos += org_repos
 
-        if self.debug:
+        if self.args.debug:
             print "Available repos:", get_color_str(str(len(repos)), Color.GREEN)
             for repo in repos:
                 owner = repo.owner.login
@@ -222,14 +216,14 @@ class RepoUpdater(object):
             return False
 
         print "Need to clone", repo_data.name
-        if self.mirror:
+        if self.args.mirror:
             clone_opts = '--mirror'
         else:
             clone_opts = '--recurse-submodules'
-        if self.ssh:
+        if self.args.ssh:
             clone_url = repo_data.ssh_url
         else:
-            clone_url = GIT_CLONE_API_URL % (self.auth_token,
+            clone_url = GIT_CLONE_API_URL % (self.args.token,
                                              repo_data.full_name)
         clone_cmd = GIT_CLONE_CMD % (clone_opts, clone_url)
 
@@ -237,7 +231,7 @@ class RepoUpdater(object):
         # wiki hasn't actually been initialized, it won't exist. Try to
         # catch that issue.
         is_wiki = repo_data.name.endswith('.wiki')
-        ret = system_exec(clone_cmd, self.cwd, ignore_error=is_wiki)
+        ret = system_exec(clone_cmd, self.args.cwd, ignore_error=is_wiki)
         if is_wiki and ret[0] != 0:
             print "Wiki for %s not initialized, skipping" \
                 % repo_data.name.rpartition('.wiki')[0]
@@ -247,7 +241,7 @@ class RepoUpdater(object):
         return True
 
     def get_sha_str(self, branch, directory):
-        if self.mirror:
+        if self.args.mirror:
             sha_cmd = GIT_SHA_CMD % branch
         else:
             sha_cmd = GIT_SHA_CMD % 'origin/' + branch
@@ -259,8 +253,8 @@ class RepoUpdater(object):
                 + self.get_sha_str(branch, directory) + ' ..'),
 
     def update_repo(self, repo_data):
-        target_directory = os.path.join(self.cwd, repo_data.name)
-        if self.mirror:
+        target_directory = os.path.join(self.args.cwd, repo_data.name)
+        if self.args.mirror:
             target_directory += '.git'
 
         if self.try_clone(repo_data, target_directory):
