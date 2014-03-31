@@ -63,6 +63,8 @@ def system_exec(command, directory=None, show_output=True, ignore_error=False):
 class AttributeDict(dict):
     def __getattr__(self, attr):
         return self[attr]
+    def __setattr__(self, attr, value):
+        self[attr] = value
 
 class RepoUpdater(object):
     def __init__(self, args):
