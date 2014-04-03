@@ -8,6 +8,7 @@ from subprocess import Popen, PIPE
 
 from urllib2 import urlopen
 import json
+from urlparse import urlparse
 
 WHITELIST=[]
 BLACKLIST=[]
@@ -174,6 +175,43 @@ class WikiRepo(CodeRepo):
         # wiki hasn't actually been initialized, it won't exist. Reuse the
         # GitRepo clone code, but allow it to fail.
         return CodeRepo.try_clone(self, True)
+
+class JsonRepo(object):
+    def __init__(self, gh_repo, config, content=None):
+        self.config = config
+
+        # Copy the details we need from the JSON
+        self.name = gh_repo.name
+        self.full_name = gh_repo.full_name
+        self.repo_url = gh_repo.url
+        self.description = gh_repo.description
+
+        # If the content type was supplied, adjust the names further
+        if content is not None:
+            self.name += '.%s' % content
+            self.full_name += '.%s' % content
+            self.description += ' - %s' % content.title()
+            self.content_directory = os.path.join(self.config.cwd, self.name)
+
+    def download_json(self, url):
+        if url == self.content_url:
+            # Just use the content directory + .json as the basename
+            target = self.content_directory + '.json'
+        else:
+            # Strip off base content URL path to get target
+            base = os.path.relpath(urlparse(url).path,
+                                   urlparse(self.content_url).path) + '.json'
+            target = os.path.join(self.content_directory, base)
+        target_directory = os.path.dirname(target)
+        if not os.path.isdir(target_directory):
+            os.makedirs(target_directory)
+
+        # Get the data and write to the file
+        if self.config.debug:
+            print "Downloading %s" % target
+        data = read_json(url, self.config)
+        with open(target, 'wb') as json_file:
+            json_file.write(data)
 
 class RepoUpdater(object):
     def __init__(self, args):
