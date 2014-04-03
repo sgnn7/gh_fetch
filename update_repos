@@ -89,8 +89,10 @@ class GitHubRepo(AttributeDict):
 
         # Initialize the content repos
         self.content.append(CodeRepo(self, config))
-        if self.config.include_wikis:
+        if self.config.full_backup:
             self.content.append(WikiRepo(self, config))
+            if self.has_issues:
+                self.content.append(IssuesRepo(self, config))
 
     def update(self):
         [repo.update() for repo in self.content]
@@ -212,6 +214,20 @@ class JsonRepo(object):
         data = read_json(url, self.config)
         with open(target, 'wb') as json_file:
             json_file.write(data)
+
+class IssuesRepo(JsonRepo):
+    def __init__(self, gh_repo, config):
+        JsonRepo.__init__(self, gh_repo, config, 'issues')
+
+        # Keep track of the base API url (strip the {/number} junk)
+        self.content_url = gh_repo.issues_url.replace('{/number}', '', 1)
+
+    def update(self):
+        print "Using", self.content_directory
+        for issue in get_json(self.content_url, self.config):
+            self.download_json(issue.url)
+            self.download_json(issue.comments_url)
+            self.download_json(issue.events_url)
 
 class RepoUpdater(object):
     def __init__(self, args):
@@ -372,8 +388,8 @@ if __name__ == '__main__':
     parser.add_argument('--include-public-org-repos', \
             help='Include public repos that are in user\'s orgs', \
             action='store_true')
-    parser.add_argument('--include-wikis', \
-            help='Include repository wikis', \
+    parser.add_argument('--full-backup', \
+            help='Include all repository content', \
             action='store_true')
 
     parser.add_argument('--debug', \
