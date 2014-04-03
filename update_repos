@@ -45,7 +45,7 @@ def system_exec(command, directory=None, show_output=True, ignore_error=False):
         output = output.strip()
         error = error.strip()
 
-        if show_output:
+        if show_output and len(output) > 0:
             print output
             sys.stdout.flush()
 
