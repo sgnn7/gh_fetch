@@ -66,6 +66,17 @@ class AttributeDict(dict):
     def __setattr__(self, attr, value):
         self[attr] = value
 
+def read_json(uri, config):
+    uri += ACCESS_TOKEN_PARAM % config.token + LISTING_FIX_PARAM
+
+    if config.debug:
+        print "Trying:", uri
+
+    return urlopen(uri).read()
+
+def get_json(uri, config, obj_type=AttributeDict):
+    return json.loads(read_json(uri, config), object_hook=obj_type)
+
 class GitHubRepo(AttributeDict):
     """Top-level class managing all content of a GitHub repository"""
     def __init__(self, *args, **kwargs):
@@ -205,23 +216,13 @@ class RepoUpdater(object):
             print get_color_str('{:-^60}'.format(repo.name), Color.YELLOW)
             repo.update()
 
-    def get_json(self, uri, obj_type=AttributeDict, config=None):
-        uri += ACCESS_TOKEN_PARAM % self.args.token + LISTING_FIX_PARAM
-
-        if self.args.debug:
-            print "Trying:", uri
-
-        ret = json.loads(urlopen(uri).read(), object_hook=obj_type)
-        if config:
-            [obj.configure(config) for obj in ret]
-        return ret
-
     def get_user_data(self):
-        return self.get_json(GITHUB_API_HOST + USER_DETAILS_PATH
-                             % self.args.username)
+        return get_json(GITHUB_API_HOST + USER_DETAILS_PATH
+                        % self.args.username, self.args)
 
     def get_own_repos(self, repos_url):
-        repos = self.get_json(repos_url, GitHubRepo, self.args)
+        repos = get_json(repos_url, self.args, GitHubRepo)
+        [repo.configure(self.args) for repo in repos]
         repo_count = len(repos)
 
         if self.args.exclude_forks:
@@ -233,9 +234,10 @@ class RepoUpdater(object):
         all_orgs_repos = []
         repo_count = 0
 
-        orgs = self.get_json(orgs_url)
+        orgs = get_json(orgs_url, self.args)
         for org in orgs:
-            org_repos = self.get_json(org.repos_url, GitHubRepo, self.args)
+            org_repos = get_json(org.repos_url, self.args, GitHubRepo)
+            [repo.configure(self.args) for repo in org_repos]
             repo_count += len(org_repos)
 
             if not self.args.include_public_org_repos:
