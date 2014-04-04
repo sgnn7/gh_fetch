@@ -97,6 +97,7 @@ class GitHubRepo(AttributeDict):
             self.content.append(PullsRepo(self, config))
             self.content.append(TeamsRepo(self, config))
             self.content.append(CommentsRepo(self, config))
+            self.content.append(ForksRepo(self, config))
 
     def update(self):
         [repo.update() for repo in self.content]
@@ -271,6 +272,14 @@ class CommentsRepo(JsonRepo):
     def __init__(self, gh_repo, config):
         JsonRepo.__init__(self, gh_repo, gh_repo.comments_url, config,
                           'comments')
+
+    def update(self):
+        print "Using", self.content_directory + '.json'
+        self.download_file(self.content_url)
+
+class ForksRepo(JsonRepo):
+    def __init__(self, gh_repo, config):
+        JsonRepo.__init__(self, gh_repo, gh_repo.forks_url, config, 'forks')
 
     def update(self):
         print "Using", self.content_directory + '.json'
