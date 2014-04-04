@@ -15,7 +15,7 @@ $ ./update_repos -h
 usage: update_repos [-h] [--version] [-d DIRECTORY] [-t TOKEN_FILE] [-s] [-m]
                     [-x] [--exclude-forks] [--exclude-orgs]
                     [--include-org-forks] [--include-public-org-repos]
-                    [--include-wikis] [--debug]
+                    [--full-backup] [--debug]
                     username [token]
 
 Retrieve and/or update local copies of GitHub-hosted repos
@@ -43,7 +43,7 @@ optional arguments:
   --include-org-forks   Include forked repos that are in user's orgs
   --include-public-org-repos
                         Include public repos that are in user's orgs
-  --include-wikis       Include repository wikis
+  --full-backup         Include all repository content
   --debug               Enable debugging output
 ```
 
