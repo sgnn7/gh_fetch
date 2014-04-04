@@ -181,7 +181,7 @@ class WikiRepo(CodeRepo):
         return CodeRepo.try_clone(self, True)
 
 class JsonRepo(object):
-    def __init__(self, gh_repo, config, content=None):
+    def __init__(self, gh_repo, api_url, config, content=None):
         self.config = config
 
         # Copy the details we need from the JSON
@@ -189,6 +189,9 @@ class JsonRepo(object):
         self.full_name = gh_repo.full_name
         self.repo_url = gh_repo.url
         self.description = gh_repo.description
+
+        # Sanitize the content url to strip the {/number} type markers
+        self.content_url = api_url.split('{')[0]
 
         # If the content type was supplied, adjust the names further
         if content is not None:
@@ -223,10 +226,7 @@ class JsonRepo(object):
 
 class IssuesRepo(JsonRepo):
     def __init__(self, gh_repo, config):
-        JsonRepo.__init__(self, gh_repo, config, 'issues')
-
-        # Keep track of the base API url (strip the {/number} junk)
-        self.content_url = gh_repo.issues_url.replace('{/number}', '', 1)
+        JsonRepo.__init__(self, gh_repo, gh_repo.issues_url, config, 'issues')
 
     def update(self):
         print "Using", self.content_directory
@@ -237,10 +237,7 @@ class IssuesRepo(JsonRepo):
 
 class PullsRepo(JsonRepo):
     def __init__(self, gh_repo, config):
-        JsonRepo.__init__(self, gh_repo, config, 'pulls')
-
-        # Strip the {/number} junk
-        self.content_url = gh_repo.pulls_url.replace('{/number}', '', 1)
+        JsonRepo.__init__(self, gh_repo, gh_repo.pulls_url, config, 'pulls')
 
     def update(self):
         print "Using", self.content_directory
@@ -252,10 +249,8 @@ class PullsRepo(JsonRepo):
 
 class MilestonesRepo(JsonRepo):
     def __init__(self, gh_repo, config):
-        JsonRepo.__init__(self, gh_repo, config, 'milestones')
-
-        # Strip the {/number} junk
-        self.content_url = gh_repo.milestones_url.replace('{/number}', '', 1)
+        JsonRepo.__init__(self, gh_repo, gh_repo.milestones_url, config,
+                          'milestones')
 
     def update(self):
         print "Using", self.content_directory
