@@ -67,7 +67,7 @@ class AttributeDict(dict):
     def __setattr__(self, attr, value):
         self[attr] = value
 
-def read_json(uri, config):
+def read_api_uri(uri, config):
     uri += ACCESS_TOKEN_PARAM % config.token + LISTING_FIX_PARAM
 
     if config.debug:
@@ -76,7 +76,7 @@ def read_json(uri, config):
     return urlopen(uri).read()
 
 def get_json(uri, config, obj_type=AttributeDict):
-    return json.loads(read_json(uri, config), object_hook=obj_type)
+    return json.loads(read_api_uri(uri, config), object_hook=obj_type)
 
 class GitHubRepo(AttributeDict):
     """Top-level class managing all content of a GitHub repository"""
@@ -195,25 +195,29 @@ class JsonRepo(object):
             self.description += ' - %s' % content.title()
             self.content_directory = os.path.join(self.config.cwd, self.name)
 
-    def download_json(self, url):
+    def download_file(self, url, suffix='.json'):
         if url == self.content_url:
-            # Just use the content directory + .json as the basename
+            # Just use the content directory
             target = self.content_directory + '.json'
         else:
             # Strip off base content URL path to get target
             base = os.path.relpath(urlparse(url).path,
-                                   urlparse(self.content_url).path) + '.json'
+                                   urlparse(self.content_url).path)
             target = os.path.join(self.content_directory, base)
+
+        # Add suffix if specified
+        if suffix:
+            target += suffix
+
         target_directory = os.path.dirname(target)
         if not os.path.isdir(target_directory):
             os.makedirs(target_directory)
 
-        # Get the data and write to the file
         if self.config.debug:
             print "Downloading %s" % target
-        data = read_json(url, self.config)
-        with open(target, 'wb') as json_file:
-            json_file.write(data)
+        data = read_api_uri(url, self.config)
+        with open(target, 'wb') as dl_file:
+            dl_file.write(data)
 
 class IssuesRepo(JsonRepo):
     def __init__(self, gh_repo, config):
@@ -225,9 +229,9 @@ class IssuesRepo(JsonRepo):
     def update(self):
         print "Using", self.content_directory
         for issue in get_json(self.content_url, self.config):
-            self.download_json(issue.url)
-            self.download_json(issue.comments_url)
-            self.download_json(issue.events_url)
+            self.download_file(issue.url)
+            self.download_file(issue.comments_url)
+            self.download_file(issue.events_url)
 
 class RepoUpdater(object):
     def __init__(self, args):
