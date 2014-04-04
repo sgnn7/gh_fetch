@@ -203,7 +203,7 @@ class JsonRepo(object):
     def download_file(self, url, suffix='.json'):
         if url == self.content_url:
             # Just use the content directory
-            target = self.content_directory + '.json'
+            target = self.content_directory
         else:
             # Strip off base content URL path to get target
             base = os.path.relpath(urlparse(url).path,
