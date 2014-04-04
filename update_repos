@@ -93,6 +93,7 @@ class GitHubRepo(AttributeDict):
             self.content.append(WikiRepo(self, config))
             if self.has_issues:
                 self.content.append(IssuesRepo(self, config))
+                self.content.append(MilestonesRepo(self, config))
             self.content.append(PullsRepo(self, config))
 
     def update(self):
@@ -248,6 +249,18 @@ class PullsRepo(JsonRepo):
             self.download_file(pull.commits_url)
             self.download_file(pull.comments_url)
             self.download_file(pull.patch_url)
+
+class MilestonesRepo(JsonRepo):
+    def __init__(self, gh_repo, config):
+        JsonRepo.__init__(self, gh_repo, config, 'milestones')
+
+        # Strip the {/number} junk
+        self.content_url = gh_repo.milestones_url.replace('{/number}', '', 1)
+
+    def update(self):
+        print "Using", self.content_directory
+        for milestone in get_json(self.content_url, self.config):
+            self.download_file(milestone.url)
 
 class RepoUpdater(object):
     def __init__(self, args):
