@@ -95,7 +95,9 @@ class GitHubRepo(AttributeDict):
                 self.content.append(IssuesRepo(self, config))
                 self.content.append(MilestonesRepo(self, config))
             self.content.append(PullsRepo(self, config))
-            self.content.append(TeamsRepo(self, config))
+            # Teams are only available from user's repos
+            if self.owner.login == self.config.username:
+                self.content.append(TeamsRepo(self, config))
             self.content.append(CommentsRepo(self, config))
             self.content.append(ForksRepo(self, config))
 
