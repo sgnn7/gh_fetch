@@ -250,7 +250,6 @@ class PullsRepo(JsonRepo):
             self.download_file(pull.url)
             self.download_file(pull.commits_url)
             self.download_file(pull.comments_url)
-            self.download_file(pull.patch_url)
 
 class MilestonesRepo(JsonRepo):
     def __init__(self, gh_repo, config):
