@@ -116,6 +116,10 @@ class CodeRepo(object):
         self.default_branch = gh_repo.default_branch
         self.description = gh_repo.description
 
+        self.target_directory = os.path.join(self.config.cwd, self.name)
+        if self.config.mirror:
+            self.target_directory += '.git'
+
     def try_clone(self, ignore_error=False):
         print "Using", self.target_directory
         if os.path.isdir(self.target_directory):
@@ -133,8 +137,13 @@ class CodeRepo(object):
                                              self.full_name)
         clone_cmd = GIT_CLONE_CMD % (clone_opts, clone_url)
 
+        # Create leading directories if necessary
+        clone_dir = os.path.dirname(self.target_directory)
+        if not os.path.isdir(clone_dir):
+            os.makedirs(clone_dir)
+
         # Let the caller decide if errors should be ignored.
-        ret = system_exec(clone_cmd, self.config.cwd, ignore_error=ignore_error)
+        ret = system_exec(clone_cmd, clone_dir, ignore_error=ignore_error)
         if ignore_error and ret[0] != 0:
             print "Repo for %s not initialized, skipping" % self.name
             return True
@@ -155,10 +164,6 @@ class CodeRepo(object):
                 + self.get_sha_str(branch, directory) + ' ..'),
 
     def update(self):
-        self.target_directory = os.path.join(self.config.cwd, self.name)
-        if self.config.mirror:
-            self.target_directory += '.git'
-
         if self.try_clone(False):
             return
 
@@ -170,6 +175,13 @@ class WikiRepo(CodeRepo):
     """GitHub wiki git repository"""
     def __init__(self, gh_repo, config):
         CodeRepo.__init__(self, gh_repo, config)
+
+        # Put the wiki under the project.extras/wiki directory
+        self.target_directory = os.path.join(self.config.cwd,
+                                             self.name + '.extras',
+                                             'wiki')
+        if self.config.mirror:
+            self.target_directory += '.git'
 
         # Adjust the name and hardcode master as the default branch
         self.name += '.wiki'
@@ -198,12 +210,17 @@ class JsonRepo(object):
         # Sanitize the content url to strip the {/number} type markers
         self.content_url = api_url.split('{')[0]
 
+        # Put downloaded content in project.extras directory
+        self.content_directory = os.path.join(self.config.cwd,
+                                              self.name + '.extras')
+
         # If the content type was supplied, adjust the names further
         if content is not None:
             self.name += '.%s' % content
             self.full_name += '.%s' % content
             self.description += ' - %s' % content.title()
-            self.content_directory = os.path.join(self.config.cwd, self.name)
+            self.content_directory = os.path.join(self.content_directory,
+                                                  content)
 
     def download_file(self, url, suffix='.json'):
         if url == self.content_url:
