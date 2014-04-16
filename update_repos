@@ -17,7 +17,7 @@ ACCESS_TOKEN_PARAM = '?access_token=%s'
 LISTING_FIX_PARAM = '&per_page=150'
 GITHUB_API_HOST = 'https://api.github.com'
 
-GIT_CLONE_CMD = 'git clone %s %s'
+GIT_CLONE_CMD = 'git clone %s %s %s'
 GIT_CLONE_API_URL = 'https://%s@github.com/%s'
 GIT_SHA_CMD = 'git rev-parse --short %s'
 GIT_FETCH_CMD = 'git fetch'
@@ -135,7 +135,8 @@ class CodeRepo(object):
         else:
             clone_url = GIT_CLONE_API_URL % (self.config.token,
                                              self.full_name)
-        clone_cmd = GIT_CLONE_CMD % (clone_opts, clone_url)
+        clone_cmd = GIT_CLONE_CMD % (clone_opts, clone_url, \
+                                     self.target_directory)
 
         # Create leading directories if necessary
         clone_dir = os.path.dirname(self.target_directory)
@@ -143,7 +144,7 @@ class CodeRepo(object):
             os.makedirs(clone_dir)
 
         # Let the caller decide if errors should be ignored.
-        ret = system_exec(clone_cmd, clone_dir, ignore_error=ignore_error)
+        ret = system_exec(clone_cmd, ignore_error=ignore_error)
         if ignore_error and ret[0] != 0:
             print "Repo for %s not initialized, skipping" % self.name
             return True
