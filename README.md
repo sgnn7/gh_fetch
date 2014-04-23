@@ -59,6 +59,10 @@ optional arguments:
 ./update_repos -x -d ~/backups --include-org-forks --include-public-org-repos backup-user 1234567890abfdefghijkl
 ```
 
-TODO:
+## TODO
 - Scrubbing of remote endpoints
 - Lots of testing
+
+## Contributors
+ - Srdjan Grubor ([@sgnn7](http://github.com/sgnn7))
+ - Dan Nicholson ([@dbnicholson](http://github.com/dbnicholson))
