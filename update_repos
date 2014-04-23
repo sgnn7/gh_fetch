@@ -53,7 +53,8 @@ def system_exec(command, directory=None, show_output=True, ignore_error=False):
         if process.returncode != 0 and not ignore_error:
             raise Exception(error)
 
-        return process.returncode, output, error
+        ReturnInfo = namedtuple('ReturnInfo', 'return_code output error')
+        return ReturnInfo(process.returncode, output, error)
 
     except Exception as err:
         print >>sys.stderr, Color.RED + "Could not execute", command
@@ -144,8 +145,8 @@ class CodeRepo(object):
             os.makedirs(clone_dir)
 
         # Let the caller decide if errors should be ignored.
-        ret = system_exec(clone_cmd, ignore_error=ignore_error)
-        if ignore_error and ret[0] != 0:
+        return_code = system_exec(clone_cmd, ignore_error=ignore_error).return_code
+        if ignore_error and return_code != 0:
             print "Repo for %s not initialized, skipping" % self.name
             return True
 
@@ -157,7 +158,7 @@ class CodeRepo(object):
             sha_cmd = GIT_SHA_CMD % branch
         else:
             sha_cmd = GIT_SHA_CMD % 'origin/' + branch
-        sha = system_exec(sha_cmd, directory, False, True)[1]
+        sha = system_exec(sha_cmd, directory, False, True).output
         return get_color_str(sha, Color.GREEN)
 
     def print_start_sha(self, branch, directory):
