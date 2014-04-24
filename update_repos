@@ -4,6 +4,7 @@
 import sys
 import os
 import argparse
+from collections import namedtuple
 from subprocess import Popen, PIPE
 
 from urllib2 import urlopen
