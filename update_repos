@@ -22,6 +22,7 @@ GIT_CLONE_CMD = 'git clone %s %s %s'
 GIT_CLONE_API_URL = 'https://%s@github.com/%s'
 GIT_SHA_CMD = 'git rev-parse --short %s'
 GIT_FETCH_CMD = 'git fetch'
+GIT_CHECK_REMOTE_CMD = 'git ls-remote'
 
 USER_DETAILS_PATH = '/users/%s'
 
@@ -166,9 +167,21 @@ class CodeRepo(object):
         print("- " + get_color_str(branch, Color.GREEN) + " @ " \
                 + self.get_sha_str(branch, directory) + ' ..'),
 
-    def update(self):
+    def update(self, fatal_remote_errors = True):
         if self.try_clone(False):
             return
+
+        # Check if the remote is still there before fetching
+        return_code = system_exec(GIT_CHECK_REMOTE_CMD, self.target_directory, show_output=False, ignore_error=True).return_code
+        if return_code != 0:
+            # Is it fatal?
+            if fatal_remote_errors:
+                error_message = get_color_str("ERROR: Repo for %s seems to have been deleted. Skipping update." % self.full_name, Color.RED)
+                print error_message
+                raise Exception(error_message)
+            else:
+                print get_color_str("WARNING: Repo for %s seems to have been deleted. Skipping update." % self.full_name, Color.GREEN)
+                return
 
         self.print_start_sha(self.default_branch, self.target_directory)
         system_exec(GIT_FETCH_CMD, self.target_directory, False)
@@ -199,6 +212,9 @@ class WikiRepo(CodeRepo):
         # wiki hasn't actually been initialized, it won't exist. Reuse the
         # GitRepo clone code, but allow it to fail.
         return CodeRepo.try_clone(self, True)
+
+    def update(self):
+        super(WikiRepo, self).update(fatal_remote_errors = False)
 
 class JsonRepo(object):
     def __init__(self, gh_repo, api_url, config, content=None):
