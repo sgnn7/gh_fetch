@@ -71,7 +71,7 @@ class AttributeDict(dict):
     def __setattr__(self, attr, value):
         self[attr] = value
 
-def read_api_uri(uri, config, page):
+def read_api_uri(uri, config, page=1):
     uri += ACCESS_TOKEN_PARAM % config.token + LISTING_PAGE_PARAM % (LISTINGS_PER_PAGE, page)
 
     if config.debug:
