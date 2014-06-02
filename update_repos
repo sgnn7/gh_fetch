@@ -14,8 +14,9 @@ from urlparse import urlparse
 WHITELIST=[]
 BLACKLIST=[]
 
+LISTINGS_PER_PAGE = 100
 ACCESS_TOKEN_PARAM = '?access_token=%s'
-LISTING_FIX_PARAM = '&per_page=150'
+LISTING_PAGE_PARAM = '&per_page=%d&page=%d'
 GITHUB_API_HOST = 'https://api.github.com'
 
 GIT_CLONE_CMD = 'git clone %s %s %s'
@@ -70,16 +71,16 @@ class AttributeDict(dict):
     def __setattr__(self, attr, value):
         self[attr] = value
 
-def read_api_uri(uri, config):
-    uri += ACCESS_TOKEN_PARAM % config.token + LISTING_FIX_PARAM
+def read_api_uri(uri, config, page):
+    uri += ACCESS_TOKEN_PARAM % config.token + LISTING_PAGE_PARAM % (LISTINGS_PER_PAGE, page)
 
     if config.debug:
         print "Trying:", uri
 
     return urlopen(uri).read()
 
-def get_json(uri, config, obj_type=AttributeDict):
-    return json.loads(read_api_uri(uri, config), object_hook=obj_type)
+def get_json(uri, config, obj_type=AttributeDict, page=1):
+    return json.loads(read_api_uri(uri, config, page), object_hook=obj_type)
 
 class GitHubRepo(AttributeDict):
     """Top-level class managing all content of a GitHub repository"""
@@ -368,7 +369,8 @@ class RepoUpdater(object):
                         % self.args.username, self.args)
 
     def get_own_repos(self, repos_url):
-        repos = get_json(repos_url, self.args, GitHubRepo)
+        repos = self._get_paged_repos(repos_url, self.args, GitHubRepo)
+
         [repo.configure(self.args) for repo in repos]
         repo_count = len(repos)
 
@@ -383,7 +385,8 @@ class RepoUpdater(object):
 
         orgs = get_json(orgs_url, self.args)
         for org in orgs:
-            org_repos = get_json(org.repos_url, self.args, GitHubRepo)
+            org_repos = self._get_paged_repos(org.repos_url, self.args, GitHubRepo)
+
             [repo.configure(self.args) for repo in org_repos]
             repo_count += len(org_repos)
 
@@ -395,6 +398,25 @@ class RepoUpdater(object):
             all_orgs_repos += org_repos
 
         return all_orgs_repos, repo_count
+
+    def _get_paged_repos(self, url, args, clazz):
+        repos_page = get_json(url, args, clazz)
+        repos = repos_page
+
+        if self.args.debug:
+            print "Retrieved %d entries from %s" % (len(repos), url )
+
+        page = 2
+        while len(repos_page) >= LISTINGS_PER_PAGE:
+            repos_page = get_json(url, args, clazz, page)
+
+            if self.args.debug:
+                print "Retrieved %d entries from %s" % (len(repos_page), url)
+
+            repos += repos_page
+            page += 1
+
+        return repos
 
     def get_repos(self, repos_url, orgs_url):
         repos = []
